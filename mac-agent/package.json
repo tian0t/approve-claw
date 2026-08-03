@@ -1,7 +1,7 @@
 {
   "name": "approve-claw",
   "version": "1.0.0",
-  "description": "approve-claw [WIP] - Mac Agent Bridge for Remote AI Approval",
+  "description": "[WIP] approve-claw - Remote AI Agent Permission Approval System for iPhone & Apple Watch (Work In Progress)",
   "main": "src/index.js",
   "engines": {
     "node": ">=18"
