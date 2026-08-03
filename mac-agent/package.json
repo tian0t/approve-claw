@@ -1,8 +1,24 @@
 {
   "name": "approve-claw",
-  "version": "1.0.0",
-  "description": "[WIP] approve-claw - Remote AI Agent Permission Approval System for iPhone & Apple Watch (Work In Progress)",
+  "version": "1.0.0-wip",
+  "description": "[WIP] Remote AI Agent Permission Approval Bridge for iPhone & Apple Watch (Antigravity IDE, Claude Code, Codex)",
   "main": "src/index.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tian0t/approve-claw.git"
+  },
+  "keywords": [
+    "ai-agent",
+    "antigravity-ide",
+    "claude-code",
+    "approval",
+    "apple-watch",
+    "watchos",
+    "ios",
+    "security-bridge"
+  ],
+  "author": "tian0t",
+  "license": "MIT",
   "engines": {
     "node": ">=18"
   },
@@ -12,6 +28,7 @@
   },
   "scripts": {
     "start": "node src/index.js",
+    "daemon": "node src/index.js daemon",
     "mock": "node src/mock-agent.js",
     "test": "node --test test/*.test.js"
   },
