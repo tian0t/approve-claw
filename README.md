@@ -13,7 +13,7 @@
 
 *When your AI agent asks for permission, approve it from your wrist.*
 
-> **Supported agents**: Antigravity IDE ✅ &nbsp;|&nbsp; Claude Code CLI 🚧 planned &nbsp;|&nbsp; Codex CLI 🚧 planned
+> **Agent support**: Antigravity IDE 🚧 partial (tests pass, real-world WIP) &nbsp;|&nbsp; Claude Code CLI 🔜 planned &nbsp;|&nbsp; Codex CLI 🔜 planned
 
 [Overview](#-overview) • [Features](#-key-features) • [Architecture](#-system-architecture) • [Installation](#-installation) • [Status](#-status--roadmap)
 
@@ -29,9 +29,9 @@ When these agents request to execute shell commands or access files outside thei
 
 | Agent | Status |
 |-------|--------|
-| Antigravity IDE | ✅ Supported |
-| Claude Code CLI | 🚧 Planned |
-| Codex CLI | 🚧 Planned |
+| Antigravity IDE | 🚧 Partial — unit tests pass; real-world task execution has known issues |
+| Claude Code CLI | 🔜 Planned |
+| Codex CLI | 🔜 Planned |
 
 ---
 
@@ -45,7 +45,7 @@ When these agents request to execute shell commands or access files outside thei
 - Real-time permission cards showing command details, target file paths, and risk level.
 - Lock-screen push notifications via `UNUserNotificationCenter` with quick `✅ Approve` / `❌ Reject` actions.
 
-### 🤖 Antigravity IDE Brain Watcher ✅
+### 🤖 Antigravity IDE Brain Watcher 🚧
 - Monitors agent transcript logs under `~/.gemini/antigravity/brain/` in real time (polling every 400ms).
 - Automatically prioritizes the most recently active project conversation (`mtimeMs` sorting).
 - Filters out internal daemon activity to prevent noise on your devices.
@@ -66,7 +66,7 @@ When these agents request to execute shell commands or access files outside thei
 │                                                                  │
 │  ┌─────────────────┐  ┌──────────────────┐  ┌────────────────┐  │
 │  │ Antigravity IDE │  │ Claude Code CLI  │  │   Codex CLI    │  │
-│  │   ✅ Supported  │  │   🚧 Planned     │  │  🚧 Planned    │  │
+│  │  🚧 Partial WIP │  │   🔜 Planned     │  │  🔜 Planned    │  │
 │  └────────┬────────┘  └────────┬─────────┘  └───────┬────────┘  │
 │           │ Brain Transcripts  │ PTY Output          │ PTY       │
 │           └──────────────────┬─┴─────────────────────┘           │
@@ -136,7 +136,7 @@ approve-claw/
 - [ ] Concurrent multi-agent request queue `[planned]`
 
 **Agent Support**
-- [x] Antigravity IDE
+- [~] Antigravity IDE — unit tests pass, real-world task execution unstable `[wip]`
 - [ ] Claude Code CLI `[planned]`
 - [ ] Codex CLI `[planned]`
 
