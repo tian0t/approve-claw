@@ -1,0 +1,8 @@
+.DS_Store
+node_modules/
+mac-agent/config.json
+ios/**/xcuserdata/
+DerivedData/
+build/
+*.xcuserstate
+

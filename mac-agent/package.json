@@ -1,0 +1,22 @@
+{
+  "name": "approve-claw",
+  "version": "1.0.0",
+  "description": "approve-claw [WIP] - Mac Agent Bridge for Remote AI Approval",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "bin": {
+    "approve-claw": "./src/index.js",
+    "watchapprove": "./src/index.js"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "mock": "node src/mock-agent.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "node-pty": "^1.1.0-beta5",
+    "ws": "^8.16.0"
+  }
+}

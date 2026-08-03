@@ -1,0 +1,2 @@
+#!/bin/bash
+exec node "/Users/yu./Desktop/program/claude-watch/mac-agent/src/index.js" "$@"
