@@ -2,7 +2,7 @@
 
 # 🐾 approve-claw `[WIP]`
 
-**Enterprise-Grade Remote Security Approval System for macOS AI Coding Agents**
+**Real-Time Remote Permission Approval Bridge for macOS AI Coding Agents**
 
 [![Status](https://img.shields.io/badge/status-work--in--progress-orange.svg)](https://github.com/tian0t/approve-claw)
 [![Version](https://img.shields.io/badge/version-1.0.0--wip-blue.svg)](https://github.com/tian0t/approve-claw)
@@ -11,9 +11,9 @@
 [![Swift](https://img.shields.io/badge/Swift-5.9%2B-FA7343.svg)](https://developer.apple.com/swift/)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18.0.0-339933.svg)](https://nodejs.org/)
 
-*Bridge macOS Autonomous AI Agents (Antigravity IDE, Claude Code CLI, Codex) directly to your iPhone and Apple Watch.*
+*When your AI agent asks for permission, approve it from your wrist.*
 
-[Overview](#-overview) • [Features](#-key-features) • [Architecture](#-system-architecture--data-flow) • [Installation](#-installation--getting-started) • [Status & Roadmap](#-current-status--technical-roadmap)
+[Overview](#-overview) • [Features](#-key-features) • [Architecture](#-system-architecture) • [Installation](#-installation) • [Status](#-status--roadmap)
 
 </div>
 
@@ -21,61 +21,59 @@
 
 ## 📌 Overview
 
-**approve-claw** is a real-time, cross-device security authorization bridge designed for autonomous macOS AI coding assistants. 
+**approve-claw** is a real-time, cross-device permission approval bridge for autonomous macOS AI coding agents such as **Antigravity IDE** and **Claude Code CLI**.
 
-When modern AI agents attempt to execute terminal commands, run external scripts, or modify files outside their sandboxes, `approve-claw` intercepts these permission challenges in real time. Instead of locking you to your Mac display, `approve-claw` mirrors dynamic multi-choice permission cards to your **iPhone** and **Apple Watch**. Review contextual details and issue precise approvals (`1. Yes, allow this time`, `2. Always allow in conversation`, etc.) straight from your wrist or mobile device.
+When these agents request to execute shell commands or access files outside their sandboxes, a permission dialog appears on your Mac — requiring you to be at your desk. `approve-claw` mirrors these dialogs directly to your **iPhone** and **Apple Watch**, letting you review the request and tap one of the exact permission choices (`1. Yes, allow this time`, `2. Always allow in conversation`, etc.) without touching your Mac.
 
 ---
 
 ## ✨ Key Features
 
-### ⌚ Native Apple Watch Companion (`watchOS`)
-- **Independent SwiftUI Watch App**: Lightweight, native interface engineered specifically for watchOS 10+.
-- **Optimized UI Components (`WatchOptionButtonRow`)**: Custom single-line action rows with explicit type inference to guarantee sub-millisecond compilation and rendering.
-- **Haptic Feedback Alerts**: Distinct haptic vibration signatures triggered upon incoming high-priority permission prompts.
+### ⌚ Native Apple Watch App
+- Independent watchOS 10+ app with a compact, single-line option layout purpose-built for small screens.
+- Haptic alerts fire on arrival of new permission requests.
 
-### 📱 iPhone Companion & Push Notifications (`iOS`)
-- **Interactive UI Cards**: Real-time WebSocket card rendering displaying command titles, risk levels, and targeted file paths.
-- **Lock-Screen Quick Actions**: Fully integrated with Apple's `UNUserNotificationCenter` for instant approval (`✅ Approve`) or denial (`❌ Reject`) from lock screen banners.
+### 📱 iPhone App & Notifications
+- Real-time permission cards showing command details, target file paths, and risk level.
+- Lock-screen push notifications via `UNUserNotificationCenter` with quick `✅ Approve` / `❌ Reject` actions.
 
-### 🤖 Intelligent Antigravity IDE Brain Watcher
-- **Real-Time Log Parsing**: Continuously monitors agent transcript trajectories under `~/.gemini/antigravity/brain/`.
-- **Active-Project Prioritization**: Dynamically ranks active projects by file modification timestamp (`mtimeMs`), ensuring zero-latency response for your currently active workspace.
-- **Self-Meta Exclusion Filter**: Built-in whitelist filtering to prevent internal daemon configuration commands from leaking to mobile devices.
+### 🤖 Antigravity IDE Brain Watcher
+- Monitors agent transcript logs under `~/.gemini/antigravity/brain/` in real time (polling every 400ms).
+- Automatically prioritizes the most recently active project conversation (`mtimeMs` sorting).
+- Filters out internal daemon activity to prevent noise on your devices.
 
-### ⌨️ Physical Keypress Injection Engine
-- **AppleScript System Events Bridge**: Translates remote mobile decisions into physical keyboard signals (`1`-`5` + `Return`), delivering seamless automation back to the active target IDE window (`Google Antigravity`).
+### 🔀 Dynamic Option Mirroring
+- Parses and mirrors the exact choice list shown on your Mac (e.g. all 5 options from an Antigravity IDE permission prompt) — not just a binary approve/reject.
+
+### ⌨️ Keypress Injection
+- Forwards your mobile decision back to the active IDE window via macOS `System Events` (`keystroke` + `Return`), closing the loop without any manual input on Mac.
 
 ---
 
-## 🏗️ System Architecture & Data Flow
+## 🏗️ System Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                              macOS Host                                 │
-│                                                                         │
-│   ┌────────────────────────┐             ┌──────────────────────────┐   │
-│   │  Antigravity IDE       │             │  Claude Code / Codex CLI │   │
-│   └───────────┬────────────┘             └────────────┬─────────────┘   │
-│               │ Brain Transcripts (.jsonl)            │ PTY Output      │
-│               ▼                                       ▼                 │
-│   ┌─────────────────────────────────────────────────────────────────┐   │
-│   │                 approve-claw Mac Agent Daemon                   │   │
-│   │  - Log Transcript Watcher & Regex Prompt Detector               │   │
-│   │  - Secure Local WebSocket Server (Port 8080)                    │   │
-│   │  - macOS AppleScript Keypress Injection Engine                  │   │
-│   └────────────────────────────────┬────────────────────────────────┘   │
-└────────────────────────────────────┼────────────────────────────────────┘
-                                     │ Local WebSocket (ws://)
-                                     ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         Apple Mobile Ecosystem                          │
-│                                                                         │
-│   ┌────────────────────────┐   WatchConnectivity   ┌────────────────┐   │
-│   │      iPhone App        │ ◄───────────────────► │   Apple Watch  │   │
-│   │   (iOS 17+ SwiftUI)    │    (WCSession Sync)   │  (watchOS 10+) │   │
-│   └────────────────────────┘                       └────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                           macOS Host                             │
+│                                                                  │
+│   ┌─────────────────────────────────────────────────────────┐    │
+│   │                 approve-claw Mac Agent                  │    │
+│   │  - Antigravity IDE Brain Transcript Watcher             │    │
+│   │  - Claude Code CLI PTY Prompt Detector                  │    │
+│   │  - WebSocket Server (LAN, Port 8080)                    │    │
+│   │  - AppleScript Keypress Injection (System Events)       │    │
+│   └─────────────────────────────┬───────────────────────────┘    │
+└─────────────────────────────────┼────────────────────────────────┘
+                                  │  Local WebSocket (ws://)
+                                  ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                      Apple Mobile Devices                        │
+│                                                                  │
+│   ┌───────────────────┐    WatchConnectivity    ┌─────────────┐  │
+│   │    iPhone App     │ ◄────────────────────► │ Apple Watch │  │
+│   │  (iOS 17+ SwiftUI)│                         │ (watchOS 10+│  │
+│   └───────────────────┘                         └─────────────┘  │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -84,99 +82,86 @@ When modern AI agents attempt to execute terminal commands, run external scripts
 
 ```
 approve-claw/
-├── mac-agent/                        # macOS Daemon & Parser Engine
+├── mac-agent/
 │   ├── src/
-│   │   ├── index.js                  # CLI Entrypoint & Daemon Supervisor
-│   │   ├── antigravity_ide_bridge.js # Brain transcript log watcher & filter
-│   │   ├── detector.js               # RegExp prompt parser & option extractor
-│   │   └── websocket.js              # WebSocket server & device session manager
-│   ├── test/                         # Unit & integration test suites
-│   └── package.json                  # Node.js package manifest (v1.0.0-wip)
-├── ios/                              # Apple Native Codebase (SwiftUI)
-│   ├── Shared/                       # Cross-Target Shared Utilities
-│   │   ├── Models.swift              # Data structures (ApprovalRequest, Option)
-│   │   └── NotificationManager.swift # Push notification & category actions
-│   ├── WatchApprove/                 # iPhone iOS Target
-│   │   ├── ContentView.swift         # Dynamic UI card stack
-│   │   └── WebSocketManager.swift    # Client socket protocol implementation
-│   └── WatchApproveWatch/            # Apple Watch watchOS Target
-│       ├── ContentView.swift         # watchOS UI & WatchOptionButtonRow
-│       └── WatchConnectivityManager.swift # WatchConnectivity sync engine
-├── scripts/                          # Icon utilities & Swift build helpers
-├── project.yml                       # XcodeGen project configuration
-└── README.md                         # Project documentation
+│   │   ├── index.js                   # CLI entrypoint & daemon supervisor
+│   │   ├── antigravity_ide_bridge.js  # Brain log watcher & active project filter
+│   │   ├── detector.js                # Prompt regex parser & option extractor
+│   │   └── websocket.js               # WebSocket server & device session manager
+│   ├── test/                          # Unit test suites
+│   └── package.json
+├── ios/
+│   ├── Shared/
+│   │   ├── Models.swift               # Shared data models (ApprovalRequest, Option)
+│   │   └── NotificationManager.swift  # Push notifications & quick actions
+│   ├── WatchApprove/                  # iPhone app target
+│   └── WatchApproveWatch/             # Apple Watch app target
+├── project.yml                        # XcodeGen project configuration
+└── README.md
 ```
 
 ---
 
-## ⚠️ Current Status & Technical Roadmap
+## ⚠️ Status & Roadmap
 
 > [!WARNING]
-> **Development Status: Work In Progress (WIP)**
+> **This project is a Work In Progress (WIP).**
 >
-> - 🟢 **Desktop Simulation & Protocol Validation**: Fully verified and passing across CLI unit tests (`npm test`), PTY terminal wrappers, and Xcode watchOS target compilation (`** BUILD SUCCEEDED **`).
-> - 🔴 **Real-World Execution Edge Cases**: In complex real-world multi-file scenarios (e.g., Antigravity IDE rapid sequential file edits, multi-file syntax checks, or rapid conversation switching), synchronization latency or prompt delivery edge cases may occur. Ongoing refactoring is focused on enhancing state-machine resilience.
+> - 🟢 **Working**: Unit tests pass (`npm test`), Xcode builds succeed (`** BUILD SUCCEEDED **`), and the system works end-to-end in controlled test scenarios.
+> - 🔴 **Known issues**: Under real-world workloads — particularly rapid sequential permission prompts, multi-file edits, or frequent project switching in Antigravity IDE — prompt delivery may be delayed or missed. State machine improvements are ongoing.
 
-### Technical Roadmap
+### Roadmap
 
-- [x] Multi-project active conversation prioritization (`mtimeMs` sorting).
-- [x] Apple Watch native single-line dynamic option button layout.
-- [x] Lock-screen push notifications & Quick Actions.
-- [ ] Dedicated macOS Accessibility API integration (replacing System Events fallback).
-- [ ] APNs (Apple Push Notification service) remote cellular push support.
-- [ ] Multi-agent concurrent request queue optimization.
+- [x] Multi-project conversation prioritization
+- [x] Apple Watch native single-line dynamic option layout
+- [x] Push notifications with Quick Actions
+- [ ] Replace AppleScript System Events with Accessibility API
+- [ ] Remote APNs push (cellular, without LAN requirement)
+- [ ] Concurrent multi-agent request queue
 
 ---
 
-## 🚀 Installation & Getting Started
+## 🚀 Installation
 
 ### Prerequisites
 
-- **macOS**: macOS 13.0 (Ventura) or later (Accessibility permissions required for System Events).
-- **Node.js**: Node.js v18.0.0 or higher.
-- **Xcode Tools**: Xcode 15.0+ and `xcodegen` (`brew install xcodegen`).
-- **Apple Devices**: iPhone running iOS 17.0+ and Apple Watch running watchOS 10.0+.
+| Requirement | Version |
+|-------------|---------|
+| macOS | 13.0 (Ventura)+ |
+| Node.js | 18.0+ |
+| Xcode | 15.0+ |
+| xcodegen | latest (`brew install xcodegen`) |
+| iPhone | iOS 17.0+ |
+| Apple Watch | watchOS 10.0+ |
 
-### 1. Launch the Mac Agent Daemon
+> [!IMPORTANT]
+> Enable **Accessibility** permissions for `System Events` under **System Settings → Privacy & Security → Accessibility** to allow keypress injection.
+
+### 1. Start the Mac Agent
 
 ```bash
 cd mac-agent
 npm install
-
-# Start the daemon in supervisor mode
 node src/index.js daemon
 ```
 
-### 2. Generate and Build Apple Native App
+### 2. Build & Deploy the iOS App
 
 ```bash
-# Generate WatchApprove.xcodeproj via XcodeGen
 xcodegen generate
-
-# Validate watchOS target build
-xcodebuild -project WatchApprove.xcodeproj \
-  -target WatchApproveWatch \
-  -destination 'generic/platform=watchOS' \
-  CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO build
 ```
 
-Open `WatchApprove.xcodeproj` in Xcode and press **`⌘ + R`** to deploy to your paired iPhone and Apple Watch!
+Then open `WatchApprove.xcodeproj` in Xcode and press **`⌘ + R`** to build and run on your paired iPhone and Apple Watch.
 
 ---
 
 ## 🔒 Security & Privacy
 
-- **Local-First Architecture**: `approve-claw` operates entirely within your local network (LAN / Wi-Fi). No prompt data, code snippets, or system logs are ever transmitted to third-party cloud servers.
-- **Token & PIN Verification**: Initial device pairing is secured via a 6-digit PIN handshake and persistent device tokens.
+- **Local-network only**: All communication happens over LAN/Wi-Fi. No data is ever sent to external servers.
+- **PIN-based pairing**: Device pairing is protected by a 6-digit PIN handshake with persistent session tokens.
 
 ---
 
 ## 📄 License
 
-Distributed under the **MIT License**. See `LICENSE` for more information.
-
-<div align="center">
-
-*Created with ❤️ by [tian0t](https://github.com/tian0t)*
-
-</div>
+MIT License © 2026 [tian0t](https://github.com/tian0t)
