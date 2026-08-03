@@ -68,13 +68,13 @@ When these agents request to execute shell commands or access files outside thei
 ┌──────────────────────────────────────────────────────────────────┐
 │                           macOS Host                             │
 │                                                                  │
-│  ┌──────────────────┐  ┌─────────────────┐  ┌────────────────┐  │
-│  │  Antigravity IDE │  │ Claude Code CLI │  │   Codex CLI    │  │
-│  │  [WIP: partial]  │  │   [planned]     │  │   [planned]    │  │
-│  └────────┬─────────┘  └───────┬─────────┘  └───────┬────────┘  │
-│           │                    │                     │           │
-│           │ Brain Transcripts  │ PTY Output    PTY   │           │
-│           └────────────────────┴─────────────────────┘           │
+│  ┌──────────────────┐  ┌─────────────────┐  ┌────────────────┐   │
+│  │  Antigravity IDE │  │ Claude Code CLI │  │   Codex CLI    │   │
+│  │  [WIP: partial]  │  │   [planned]     │  │   [planned]    │   │
+│  └────────┬─────────┘  └───────┬─────────┘  └───────┬────────┘   │
+│           │                    │                    │            │
+│           │ Brain Transcripts  │ PTY Output    PTY  │            │
+│           └────────────────────┴────────────────────┘            │
 │                                │                                 │
 │                                ▼                                 │
 │   ┌──────────────────────────────────────────────────────────┐   │
