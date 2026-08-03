@@ -13,6 +13,8 @@
 
 *When your AI agent asks for permission, approve it from your wrist.*
 
+> **Supported agents**: Antigravity IDE ✅ &nbsp;|&nbsp; Claude Code CLI 🚧 planned &nbsp;|&nbsp; Codex CLI 🚧 planned
+
 [Overview](#-overview) • [Features](#-key-features) • [Architecture](#-system-architecture) • [Installation](#-installation) • [Status](#-status--roadmap)
 
 </div>
@@ -21,9 +23,15 @@
 
 ## 📌 Overview
 
-**approve-claw** is a real-time, cross-device permission approval bridge for autonomous macOS AI coding agents such as **Antigravity IDE** and **Claude Code CLI**.
+**approve-claw** is a real-time, cross-device permission approval bridge for autonomous macOS AI coding agents.
 
 When these agents request to execute shell commands or access files outside their sandboxes, a permission dialog appears on your Mac — requiring you to be at your desk. `approve-claw` mirrors these dialogs directly to your **iPhone** and **Apple Watch**, letting you review the request and tap one of the exact permission choices (`1. Yes, allow this time`, `2. Always allow in conversation`, etc.) without touching your Mac.
+
+| Agent | Status |
+|-------|--------|
+| Antigravity IDE | ✅ Supported |
+| Claude Code CLI | 🚧 Planned |
+| Codex CLI | 🚧 Planned |
 
 ---
 
@@ -37,7 +45,7 @@ When these agents request to execute shell commands or access files outside thei
 - Real-time permission cards showing command details, target file paths, and risk level.
 - Lock-screen push notifications via `UNUserNotificationCenter` with quick `✅ Approve` / `❌ Reject` actions.
 
-### 🤖 Antigravity IDE Brain Watcher
+### 🤖 Antigravity IDE Brain Watcher ✅
 - Monitors agent transcript logs under `~/.gemini/antigravity/brain/` in real time (polling every 400ms).
 - Automatically prioritizes the most recently active project conversation (`mtimeMs` sorting).
 - Filters out internal daemon activity to prevent noise on your devices.
@@ -56,10 +64,17 @@ When these agents request to execute shell commands or access files outside thei
 ┌──────────────────────────────────────────────────────────────────┐
 │                           macOS Host                             │
 │                                                                  │
+│  ┌─────────────────┐  ┌──────────────────┐  ┌────────────────┐  │
+│  │ Antigravity IDE │  │ Claude Code CLI  │  │   Codex CLI    │  │
+│  │   ✅ Supported  │  │   🚧 Planned     │  │  🚧 Planned    │  │
+│  └────────┬────────┘  └────────┬─────────┘  └───────┬────────┘  │
+│           │ Brain Transcripts  │ PTY Output          │ PTY       │
+│           └──────────────────┬─┴─────────────────────┘           │
+│                              ▼                                    │
 │   ┌─────────────────────────────────────────────────────────┐    │
 │   │                 approve-claw Mac Agent                  │    │
 │   │  - Antigravity IDE Brain Transcript Watcher             │    │
-│   │  - Claude Code CLI PTY Prompt Detector                  │    │
+│   │  - PTY Prompt Detector (Claude Code / Codex) [planned]  │    │
 │   │  - WebSocket Server (LAN, Port 8080)                    │    │
 │   │  - AppleScript Keypress Injection (System Events)       │    │
 │   └─────────────────────────────┬───────────────────────────┘    │
@@ -112,12 +127,18 @@ approve-claw/
 
 ### Roadmap
 
+**Core (Antigravity IDE)**
 - [x] Multi-project conversation prioritization
 - [x] Apple Watch native single-line dynamic option layout
 - [x] Push notifications with Quick Actions
-- [ ] Replace AppleScript System Events with Accessibility API
-- [ ] Remote APNs push (cellular, without LAN requirement)
-- [ ] Concurrent multi-agent request queue
+- [ ] Replace AppleScript `System Events` with Accessibility API `[planned]`
+- [ ] Remote APNs push over cellular (no LAN required) `[planned]`
+- [ ] Concurrent multi-agent request queue `[planned]`
+
+**Agent Support**
+- [x] Antigravity IDE
+- [ ] Claude Code CLI `[planned]`
+- [ ] Codex CLI `[planned]`
 
 ---
 
