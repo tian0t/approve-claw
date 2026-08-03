@@ -68,30 +68,32 @@ When these agents request to execute shell commands or access files outside thei
 ┌──────────────────────────────────────────────────────────────────┐
 │                           macOS Host                             │
 │                                                                  │
-│  ┌─────────────────┐  ┌──────────────────┐  ┌────────────────┐  │
-│  │ Antigravity IDE │  │ Claude Code CLI  │  │   Codex CLI    │  │
-│  │  🚧 Partial WIP │  │   🔜 Planned     │  │  🔜 Planned    │  │
-│  └────────┬────────┘  └────────┬─────────┘  └───────┬────────┘  │
-│           │ Brain Transcripts  │ PTY Output          │ PTY       │
-│           └──────────────────┬─┴─────────────────────┘           │
-│                              ▼                                    │
-│   ┌─────────────────────────────────────────────────────────┐    │
-│   │                 approve-claw Mac Agent                  │    │
-│   │  - Antigravity IDE Brain Transcript Watcher             │    │
-│   │  - PTY Prompt Detector (Claude Code / Codex) [planned]  │    │
-│   │  - WebSocket Server (LAN, Port 8080)                    │    │
-│   │  - AppleScript Keypress Injection (System Events)       │    │
-│   └─────────────────────────────┬───────────────────────────┘    │
-└─────────────────────────────────┼────────────────────────────────┘
-                                  │  Local WebSocket (ws://)
-                                  ▼
+│  ┌──────────────────┐  ┌─────────────────┐  ┌────────────────┐  │
+│  │  Antigravity IDE │  │ Claude Code CLI │  │   Codex CLI    │  │
+│  │  [WIP: partial]  │  │   [planned]     │  │   [planned]    │  │
+│  └────────┬─────────┘  └───────┬─────────┘  └───────┬────────┘  │
+│           │                    │                     │           │
+│           │ Brain Transcripts  │ PTY Output    PTY   │           │
+│           └────────────────────┴─────────────────────┘           │
+│                                │                                 │
+│                                ▼                                 │
+│   ┌──────────────────────────────────────────────────────────┐   │
+│   │                  approve-claw Mac Agent                  │   │
+│   │  - Antigravity IDE Brain Transcript Watcher              │   │
+│   │  - PTY Prompt Detector (Claude Code / Codex) [planned]   │   │
+│   │  - WebSocket Server (LAN, Port 8080)                     │   │
+│   │  - AppleScript Keypress Injection (System Events)        │   │
+│   └──────────────────────────┬───────────────────────────────┘   │
+└──────────────────────────────┼───────────────────────────────────┘
+                               │  Local WebSocket (ws://)
+                               ▼
 ┌──────────────────────────────────────────────────────────────────┐
-│                      Apple Mobile Devices                        │
+│                       Apple Mobile Devices                       │
 │                                                                  │
-│   ┌───────────────────┐    WatchConnectivity    ┌─────────────┐  │
-│   │    iPhone App     │ ◄────────────────────► │ Apple Watch │  │
-│   │  (iOS 17+ SwiftUI)│                         │ (watchOS 10+│  │
-│   └───────────────────┘                         └─────────────┘  │
+│   ┌────────────────────┐  WatchConnectivity  ┌───────────────┐   │
+│   │     iPhone App     │ ◄─────────────────► │  Apple Watch  │   │
+│   │  (iOS 17+ SwiftUI) │                     │  (watchOS 10+)│   │
+│   └────────────────────┘                     └───────────────┘   │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
