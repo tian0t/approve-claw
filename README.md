@@ -1,5 +1,9 @@
 <div align="center">
 
+> ⚠️ **Project Status**
+>
+> A mobile approval app for AI agents. Out of quota, full of unsolved issues, and totally exhausted. Fixing it bit by bit when energy permits. Ouch...
+
 # 🐾 approve-claw `[WIP]`
 
 **Real-Time Remote Permission Approval Bridge for macOS AI Coding Agents**
