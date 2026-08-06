@@ -44,6 +44,19 @@ async function runMock() {
     console.log('✗ Command rejected. Skipping build cleanup.');
   }
 
+  await new Promise(r => setTimeout(r, 1000));
+
+  // Test 3: Codex CLI prompt
+  console.log('\nCodex wants to execute:');
+  console.log('  git push --force origin main');
+  const ans3 = await askQuestion('Allow execution of command? (y/n) ');
+
+  if (ans3.trim().toLowerCase() === 'y') {
+    console.log('✓ Codex command approved. Executing git push...');
+  } else {
+    console.log('✗ Codex command rejected.');
+  }
+
   console.log('\n=== Mock AI Agent Completed ===\n');
   rl.close();
 }

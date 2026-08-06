@@ -60,9 +60,14 @@ function main() {
   const server = new WatchWebSocketServer(port, onDecision, detector, host);
   server.start();
 
-  // Start Antigravity IDE Real-Time Brain Watcher
+  // Start Antigravity IDE Real-Time Brain Watcher (Track B Log Watcher)
   const ideBridge = new AntigravityIdeBridge(server, detector);
   ideBridge.start();
+
+  // Start Native macOS Accessibility AXUIElement Observer (Track A Screen UI Engine)
+  const AxBridge = require('./ax_bridge');
+  const axBridge = new AxBridge(server, detector);
+  axBridge.start();
 
   const rawCommand = args[0];
   const targetArgs = args.slice(1);
