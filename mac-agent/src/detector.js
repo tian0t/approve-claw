@@ -1,12 +1,15 @@
 const crypto = require('crypto');
 
 // Matches choice markers for Codex, Claude Code, Kun (Kimi), and Antigravity:
-// e.g., "Allow? (y/n) ", "Proceed? (Y/n) >", "[y/n]:", "(是/否)", "允许运行? (y/n)"
-const PROMPT_REGEX = /(?:\([yY]\/[nN]\)|\[[yY]\/[nN]\]|\(是\/否\)|\[是\/否\]|\[确认\/取消\])\s*[>›:#]?\s*$/;
+// e.g., "Allow? (y/n) ", "Proceed? (Y/n) >", "[y/n]:", "(是/否)", "[y/n/always]", "Execute? (y/N)"
+const PROMPT_REGEX = /(?:\([yY]\/[nN](?:\/[aA])?\)|\[[yY]\/[nN](?:\/[aA])?\]|\(是\/否\)|\[是\/否\]|\[确认\/取消\])\s*[>›:#]?\s*$/;
 
 // Matches Antigravity IDE & AGY Tool Sandbox Permission Prompts:
-// e.g., "Allow checking syntax...", "Confirm the command is safe to run outside of the sandbox", "1 Yes, allow this time"
 const ANTIGRAVITY_IDE_PROMPT_REGEX = /(?:Confirm the command is safe to run|1\s*Yes,\s*allow|Yes,\s*and\s*always\s*allow|Allow\s+[\s\S]+?\?)/i;
+
+// Matches Codex CLI Specific Permission & Execution Prompts:
+// e.g. "Codex wants to run...", "Allow execution of...", "Execute shell command?"
+const CODEX_PROMPT_REGEX = /(?:Codex\s+wants\s+to|Allow\s+execution|Execute\s+shell\s+command|Run\s+command|Proceed\s+with\s+action)\s*[\s\S]*?\?\s*(?:\([yY]\/[nN]\)|\[[yY]\/[nN]\])?/i;
 
 class ConfirmationDetector {
   constructor() {
@@ -43,9 +46,15 @@ class ConfirmationDetector {
     const tail = this.buffer.slice(searchStart);
     const recent = tail.slice(-1200);
     
-    // Check standard (y/n) prompt
+    // Check standard (y/n) prompt or Codex specific prompts
     let match = recent.match(PROMPT_REGEX);
     let isAntigravityIde = false;
+    let isCodexPrompt = false;
+
+    if (!match && CODEX_PROMPT_REGEX.test(recent)) {
+      match = recent.match(CODEX_PROMPT_REGEX);
+      isCodexPrompt = true;
+    }
 
     // Check Antigravity IDE tool sandbox permission prompt
     if (!match && ANTIGRAVITY_IDE_PROMPT_REGEX.test(recent)) {
@@ -60,14 +69,16 @@ class ConfirmationDetector {
     const localEnd = match.index + match[0].length;
     this.lastMatchEndOffset = searchStart + (tail.length - recent.length) + localEnd;
 
-    const commandInfo = this.extractCommand(isAntigravityIde);
-    const optionsList = this.extractOptionsList(isAntigravityIde);
+    const commandInfo = this.extractCommand(isAntigravityIde, isCodexPrompt);
+    const optionsList = this.extractOptionsList(isAntigravityIde, isCodexPrompt);
+
+    const detectedAgent = isAntigravityIde ? 'Antigravity IDE' : (isCodexPrompt ? 'Codex' : agentName);
 
     this.pendingRequest = {
       id: 'req_' + crypto.randomBytes(4).toString('hex'),
-      agent: isAntigravityIde ? 'Antigravity IDE' : agentName,
+      agent: detectedAgent,
       type: 'command_confirmation',
-      title: isAntigravityIde ? (commandInfo.description || 'Tool Sandbox Permission Required') : 'Permission Required',
+      title: isAntigravityIde ? (commandInfo.description || 'Tool Sandbox Permission Required') : `${detectedAgent} Permission Required`,
       command: commandInfo.command,
       description: commandInfo.description,
       risk: this.assessRisk(commandInfo.command),
@@ -75,12 +86,13 @@ class ConfirmationDetector {
       options: optionsList.map((o) => o.key),
       optionsList: optionsList,
       isIdePrompt: isAntigravityIde,
+      isCodexPrompt: isCodexPrompt,
     };
 
     return this.pendingRequest;
   }
 
-  extractOptionsList(isAntigravityIde = false) {
+  extractOptionsList(isAntigravityIde = false, isCodexPrompt = false) {
     const lines = this.buffer.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
     const options = [];
 
@@ -111,12 +123,25 @@ class ConfirmationDetector {
     return options;
   }
 
-  extractCommand(isAntigravityIde = false) {
+  extractCommand(isAntigravityIde = false, isCodexPrompt = false) {
     const lines = this.buffer.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
     let command = 'Unknown Command';
     let description = 'Confirmation prompt detected.';
 
     if (lines.length > 0) {
+      if (isCodexPrompt) {
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          if (/Codex\s+wants\s+to|Allow\s+execution|Execute\s+shell\s+command/i.test(line)) {
+            description = line;
+            if (i + 1 < lines.length) {
+              command = this.normalizeCommand(lines[i + 1]);
+              return { command, description };
+            }
+          }
+        }
+      }
+
       if (isAntigravityIde) {
         for (let i = 0; i < lines.length; i++) {
           const line = lines[i];

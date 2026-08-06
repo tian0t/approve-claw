@@ -30,6 +30,17 @@ test('detects Codex CLI prompts', () => {
   assert.equal(r.risk, 'high');
 });
 
+test('detects Codex CLI "Allow execution" prompts', () => {
+  const d = new ConfirmationDetector();
+  d.feed('\nCodex wants to execute:\n  rm -rf ./node_modules\nAllow execution of command? (y/n/always) ');
+  const r = d.detect('Codex');
+  assert.ok(r);
+  assert.equal(r.agent, 'Codex');
+  assert.equal(r.command, 'rm -rf ./node_modules');
+  assert.equal(r.risk, 'high');
+  assert.equal(r.isCodexPrompt, true);
+});
+
 test('detects Kun (Kimi) Chinese prompts', () => {
   const d = new ConfirmationDetector();
   d.feed('\n[Kun Agent] 允许运行以下命令吗？\n  python train.py --epochs 100\n允许运行? (y/n) ');

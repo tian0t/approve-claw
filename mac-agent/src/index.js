@@ -76,8 +76,13 @@ function main() {
 
   let targetCommand = rawCommand;
 
-  // Smart fallback resolution for Antigravity IDE / AGY
-  if (targetCommand === 'antigravity') {
+  // Smart fallback resolution for Antigravity IDE / AGY / Codex
+  if (targetCommand === 'codex') {
+    if (!binaryExists('codex') && binaryExists('/opt/homebrew/bin/codex')) {
+      targetCommand = '/opt/homebrew/bin/codex';
+    }
+    console.log(`\n[CLAW Approve] Launching Codex CLI (${targetCommand})...`);
+  } else if (targetCommand === 'antigravity') {
     if (!binaryExists('antigravity')) {
       if (binaryExists('agy')) {
         targetCommand = 'agy';
