@@ -6,6 +6,10 @@ const os = require('os');
 const RequestLifecycleManager = require('./request_lifecycle');
 
 const CONFIG_PATH = path.join(__dirname, '../config.json');
+const RELAY_URL = process.env.RELAY_URL || null;
+const https = require('https');
+const http = require('http');
+const { encryptBox } = require('./crypto');
 const HEARTBEAT_INTERVAL_MS = 30000;
 const MAX_AUTH_ATTEMPTS = 3;
 const REQUEST_TIMEOUT_MS = Number(process.env.WATCHAPPROVE_REQUEST_TIMEOUT_MS || 30000);
@@ -135,7 +139,13 @@ class WatchWebSocketServer {
     }
     console.log('=============================================\n');
 
-    this.wss.on('connection', (ws) => {
+    this.wss.on('connection', (ws, req) => {
+      try {
+        const url = new URL(req.url, `http://${req.headers.host}`);
+        ws._deviceId = url.searchParams.get('device') || url.searchParams.get('id') || null;
+      } catch (e) {
+        ws._deviceId = null;
+      }
       let isClientAuthenticated = false;
       let authAttempts = 0;
 
@@ -263,6 +273,57 @@ class WatchWebSocketServer {
         selectedOptionKey,
         reason: 'queue_overflow',
       });
+      return;
+    }
+
+    // If relay URL configured and target device offline, forward encrypted payload via relay
+    const targetDeviceId = (request.targetDeviceId || request.target || (request.agent && request.agent.replace(/\s+/g, '-').toLowerCase()));
+    const localWs = this.authenticatedClients && Array.from(this.authenticatedClients).find((ws) => ws._deviceId === String(targetDeviceId));
+    if (RELAY_URL && !localWs) {
+      // Try to read recipient public key from config
+      let cfg = null;
+      try {
+        if (fs.existsSync(this.configPath)) {
+          cfg = JSON.parse(fs.readFileSync(this.configPath, 'utf8'));
+        }
+      } catch (e) {
+        cfg = null;
+      }
+
+      const devices = cfg && cfg.pairedDevices ? cfg.pairedDevices : {};
+      const recipient = devices[String(targetDeviceId)];
+      if (recipient && recipient.publicKey) {
+        try {
+          const plain = JSON.stringify({ type: 'confirmation_request', request });
+          const encrypted = encryptBox(plain, cfg.agentSecretKey, recipient.publicKey);
+
+          const payload = JSON.stringify({ to: String(targetDeviceId), payload: encrypted });
+          const relayUrl = new URL(RELAY_URL);
+          const isHttps = relayUrl.protocol === 'https:';
+          const opts = {
+            hostname: relayUrl.hostname,
+            port: relayUrl.port || (isHttps ? 443 : 80),
+            path: '/forward',
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) },
+          };
+          const req = (isHttps ? https : http).request(opts, (res) => {
+            let buf = '';
+            res.on('data', (c) => buf += c);
+            res.on('end', () => {
+              try { console.log('[relay] forward response', res.statusCode, buf); } catch (e) {}
+            });
+          });
+          req.on('error', (e) => { console.error('[relay] request error', e && e.message); });
+          req.write(payload);
+          req.end();
+
+          this.logMeta('forwarded via relay', { to: targetDeviceId });
+          return;
+        } catch (e) {
+          console.error('[relay] encrypt/forward error', e && e.message);
+        }
+      }
     }
   }
 
