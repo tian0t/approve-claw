@@ -544,11 +544,11 @@ struct ContentView: View {
                             
                             Text(item.action)
                                 .font(.system(size: 9, weight: .bold))
-                                .foregroundColor(item.action == "Approved" ? .green : (item.action == "Rejected" ? .red : .yellow))
+                                .foregroundColor(item.action == "Approved" ? .green : (item.action.contains("Rejected") ? .red : .yellow))
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 3)
                                 .background(
-                                    (item.action == "Approved" ? Color.green : (item.action == "Rejected" ? Color.red : Color.yellow))
+                                    (item.action == "Approved" ? Color.green : (item.action.contains("Rejected") ? Color.red : Color.yellow))
                                         .opacity(0.12)
                                 )
                                 .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))

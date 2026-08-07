@@ -42,6 +42,8 @@ function main() {
     console.log('Environment variables:');
     console.log('  WATCHAPPROVE_PORT  WebSocket port (default: 8080)');
     console.log('  WATCHAPPROVE_HOST  Bind address   (default: 0.0.0.0)');
+    console.log('  WATCHAPPROVE_REQUEST_TIMEOUT_MS      Auto-reject timeout in ms (default: 30000)');
+    console.log('  WATCHAPPROVE_PER_AGENT_QUEUE_LIMIT   Per-agent queue limit (default: 20)');
     process.exit(args.length === 0 ? 1 : 0);
   }
 

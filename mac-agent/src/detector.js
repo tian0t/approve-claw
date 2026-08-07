@@ -1,4 +1,4 @@
-const crypto = require('crypto');
+const { createRequestId } = require('./request_id');
 
 // Matches choice markers for Codex, Claude Code, Kun (Kimi), and Antigravity:
 // e.g., "Allow? (y/n) ", "Proceed? (Y/n) >", "[y/n]:", "(是/否)", "[y/n/always]", "Execute? (y/N)"
@@ -75,7 +75,7 @@ class ConfirmationDetector {
     const detectedAgent = isAntigravityIde ? 'Antigravity IDE' : (isCodexPrompt ? 'Codex' : agentName);
 
     this.pendingRequest = {
-      id: 'req_' + crypto.randomBytes(4).toString('hex'),
+      id: createRequestId(),
       agent: detectedAgent,
       type: 'command_confirmation',
       title: isAntigravityIde ? (commandInfo.description || 'Tool Sandbox Permission Required') : `${detectedAgent} Permission Required`,

@@ -102,6 +102,20 @@ test('pairs with the PIN and relays a decision', async () => {
     assert.equal(auth.type, 'auth_success');
     assert.ok(auth.token && auth.token.length === 64, 'token should be 32 random bytes hex');
 
+    server.sendRequest({
+      id: 'req_test',
+      agent: 'Codex',
+      command: 'npm test',
+      options: ['approve', 'reject'],
+      optionsList: [
+        { key: 'approve', label: 'Approve', isPrimary: true, isDestructive: false },
+        { key: 'reject', label: 'Reject', isPrimary: false, isDestructive: true },
+      ],
+    });
+    const requestMsg = await nextMessage(ws);
+    assert.equal(requestMsg.type, 'confirmation_request');
+    assert.equal(requestMsg.request.id, 'req_test');
+
     const completedPromise = listenBefore(ws, (raw) => {
       const msg = JSON.parse(raw.toString());
       if (msg.type === 'confirmation_completed') {
@@ -109,7 +123,7 @@ test('pairs with the PIN and relays a decision', async () => {
       }
     });
 
-    ws.send(JSON.stringify({ type: 'confirmation_response', id: 'req_test', action: 'approve' }));
+    ws.send(JSON.stringify({ type: 'confirmation_response', id: 'req_test', selectedOptionKey: 'approve', action: 'approve' }));
     await waitUntil(() => decisions.some((d) => d.id === 'req_test'));
     await waitUntil(() => decisions.some((d) => d.completed && d.completed.id === 'req_test'));
 
@@ -155,6 +169,41 @@ test('re-authenticates with the saved token after pairing', async () => {
     ws.send(JSON.stringify({ type: 'auth', token: savedToken }));
     const auth = await nextMessage(ws);
     assert.equal(auth.type, 'auth_success');
+  } finally {
+    await cleanup(ws, server);
+  }
+});
+
+test('uses selectedOptionKey and applies first-write-wins', async () => {
+  const decisions = [];
+  const server = await startServer((id, action, meta) => decisions.push({ id, action, meta }));
+  let ws;
+  try {
+    ws = await open(`ws://127.0.0.1:${server.actualPort}`);
+    ws.send(JSON.stringify({ type: 'auth', code: server.pairingCode }));
+    await nextMessage(ws);
+
+    server.sendRequest({
+      id: 'req_opts',
+      agent: 'Antigravity IDE',
+      command: 'node -c index.js',
+      optionsList: [
+        { key: '1', label: '1. Yes, allow this time', isPrimary: true, isDestructive: false },
+        { key: '5', label: '5. No', isPrimary: false, isDestructive: true },
+      ],
+      options: ['1', '5'],
+    });
+    await nextMessage(ws);
+
+    ws.send(JSON.stringify({ type: 'confirmation_response', id: 'req_opts', selectedOptionKey: '1' }));
+    await waitUntil(() => decisions.length === 1);
+    assert.equal(decisions[0].meta.selectedOptionKey, '1');
+    assert.equal(decisions[0].action, 'approve');
+
+    ws.send(JSON.stringify({ type: 'confirmation_response', id: 'req_opts', selectedOptionKey: '5' }));
+    const error = await nextMessage(ws);
+    assert.equal(error.type, 'error');
+    assert.equal(decisions.length, 1);
   } finally {
     await cleanup(ws, server);
   }

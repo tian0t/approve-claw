@@ -92,12 +92,17 @@ function runTerminal(command, args, server, detector) {
   };
   process.stdin.on('data', onDataHandler);
 
-  server.onDecision = (requestId, action) => {
+  server.onDecision = (requestId, action, meta = {}) => {
     if (detector.pendingRequest && detector.pendingRequest.id === requestId) {
       const isIde = detector.pendingRequest.isIdePrompt;
       const defaultApproveKey = isIde ? '1\r' : keys.approve;
       const defaultRejectKey = isIde ? '5\r' : keys.reject;
-      const charToSubmit = action === 'approve' ? defaultApproveKey : defaultRejectKey;
+      const selectedOptionKey = meta.selectedOptionKey || action;
+      const charToSubmit = selectedOptionKey === 'approve'
+        ? defaultApproveKey
+        : selectedOptionKey === 'reject'
+          ? defaultRejectKey
+          : `${selectedOptionKey}\r`;
       console.log(`\n[CLAW Approve] Forwarding decision '${action}' (${JSON.stringify(charToSubmit)}) to ${agentLabel}...`);
       ptyProcess.write(charToSubmit);
       detector.acknowledge();

@@ -54,6 +54,13 @@ class AXObserverEngine {
         let pid = activeApp.processIdentifier
         let appName = activeApp.localizedName ?? "AI Agent App"
 
+        // Filter out non-target applications (e.g. Chrome, Finder, Xcode, Safari, Bilibili)
+        let allowedApps = ["antigravity", "google antigravity", "terminal", "iterm2", "code", "codex", "simulator"]
+        let lowerAppName = appName.lowercased()
+        if !allowedApps.contains(where: { lowerAppName.contains($0) }) {
+            return
+        }
+
         let appElement = AXUIElementCreateApplication(pid)
         var focusedWindowObj: CFTypeRef?
         let windowRes = AXUIElementCopyAttributeValue(appElement, kAXFocusedWindowAttribute as CFString, &focusedWindowObj)
@@ -180,15 +187,23 @@ class AXObserverEngine {
 
     private func isConfirmationPrompt(fullText: String, buttons: [String]) -> Bool {
         let text = fullText.lowercased()
-        let promptKeywords = ["allow", "confirm", "approve", "execute", "wants to run", "permission required", "允许", "确认", "是否允许", "是否运行", "yes, allow"]
+        let strictPromptPhrases = [
+            "confirm the command",
+            "yes, allow",
+            "allow execution",
+            "wants to run the following",
+            "permission required",
+            "允许运行",
+            "确认执行"
+        ]
         
-        let hasPromptKeyword = promptKeywords.contains { text.contains($0) }
-        let hasButtonKeyword = buttons.contains { b in
+        let hasStrictPhrase = strictPromptPhrases.contains { text.contains($0) }
+        let hasNumberedOptions = buttons.contains { b in
             let lower = b.lowercased()
-            return lower.contains("allow") || lower.contains("yes") || lower.contains("ok") || lower.contains("confirm") || lower.contains("允许") || lower.contains("确认")
+            return lower.contains("1. yes") || lower.contains("1. allow") || lower.contains("yes, allow") || lower.contains("允许")
         }
 
-        return hasPromptKeyword || hasButtonKeyword
+        return hasStrictPhrase || hasNumberedOptions
     }
 
     private func parseCommandAndDescription(textCollected: [String], appName: String) -> (command: String, description: String) {

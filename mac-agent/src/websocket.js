@@ -3,10 +3,13 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const RequestLifecycleManager = require('./request_lifecycle');
 
 const CONFIG_PATH = path.join(__dirname, '../config.json');
 const HEARTBEAT_INTERVAL_MS = 30000;
 const MAX_AUTH_ATTEMPTS = 3;
+const REQUEST_TIMEOUT_MS = Number(process.env.WATCHAPPROVE_REQUEST_TIMEOUT_MS || 30000);
+const PER_AGENT_QUEUE_LIMIT = Number(process.env.WATCHAPPROVE_PER_AGENT_QUEUE_LIMIT || 20);
 
 function getLanIps() {
   const ifaces = os.networkInterfaces();
@@ -36,6 +39,36 @@ class WatchWebSocketServer {
     this.pairingCode = Math.floor(100000 + Math.random() * 900000).toString();
     this.authToken = null;
     this.authenticatedClients = new Set();
+    this.completedRequestIds = new Set();
+
+    this.lifecycle = new RequestLifecycleManager({
+      timeoutMs: Number.isFinite(REQUEST_TIMEOUT_MS) && REQUEST_TIMEOUT_MS > 0 ? REQUEST_TIMEOUT_MS : 30000,
+      perAgentQueueLimit: Number.isFinite(PER_AGENT_QUEUE_LIMIT) && PER_AGENT_QUEUE_LIMIT > 0 ? PER_AGENT_QUEUE_LIMIT : 20,
+      eventLogPath: path.join(path.dirname(this.configPath), 'events.jsonl'),
+      onActivate: (request) => {
+        if (this.detector) {
+          this.detector.pendingRequest = request;
+        }
+        this.broadcast({
+          type: 'confirmation_request',
+          request,
+        });
+      },
+      onResolve: ({ request, selectedOptionKey, action, reason, source }) => {
+        if (this.detector && this.detector.pendingRequest && this.detector.pendingRequest.id === request.id) {
+          this.detector.acknowledge();
+        }
+        this.completedRequestIds.add(request.id);
+        this.onDecision(request.id, action, { selectedOptionKey, reason, source, request });
+        this.broadcast({
+          type: 'confirmation_completed',
+          id: request.id,
+          action,
+          selectedOptionKey,
+          reason,
+        });
+      },
+    });
 
     this.loadToken();
   }
@@ -154,14 +187,30 @@ class WatchWebSocketServer {
           }
 
           if (data.type === 'confirmation_response') {
-            const { id, action } = data;
-            if (!id || (action !== 'approve' && action !== 'reject')) {
+            const { id, action, selectedOptionKey } = data;
+            if (!id || (!action && !selectedOptionKey)) {
               ws.send(JSON.stringify({ type: 'error', message: 'Invalid confirmation_response payload.' }));
               return;
             }
-            console.log(`Received decision from Watch/iPhone for request [${id}]: \x1b[32m${action}\x1b[0m`);
-            this.onDecision(id, action);
-            this.broadcast({ type: 'confirmation_completed', id, action });
+            if (!selectedOptionKey && action && action !== 'approve' && action !== 'reject') {
+              ws.send(JSON.stringify({ type: 'error', message: 'Invalid confirmation_response payload.' }));
+              return;
+            }
+
+            const request = this.lifecycle.getActiveRequest(id);
+            if (!request) {
+              ws.send(JSON.stringify({ type: 'error', message: 'Request is no longer active.' }));
+              return;
+            }
+
+            const resolvedOptionKey = selectedOptionKey || this.lifecycle.mapLegacyAction(request, action);
+            const resolvedAction = this.optionKeyToAction(request, resolvedOptionKey, action);
+            console.log(`Received decision from Watch/iPhone for request [${id}]: \x1b[32m${resolvedOptionKey}\x1b[0m`);
+            this.lifecycle.resolve(id, {
+              selectedOptionKey: resolvedOptionKey,
+              action: resolvedAction,
+              source: 'client',
+            });
           }
         } catch (e) {
           console.error('Error handling WebSocket message:', e);
@@ -192,7 +241,7 @@ class WatchWebSocketServer {
   }
 
   resendPending(ws) {
-    if (this.detector && this.detector.pendingRequest) {
+    if (this.detector && this.detector.pendingRequest && !this.completedRequestIds.has(this.detector.pendingRequest.id)) {
       ws.send(JSON.stringify({
         type: 'confirmation_request',
         request: this.detector.pendingRequest,
@@ -203,14 +252,35 @@ class WatchWebSocketServer {
 
   sendRequest(request) {
     console.log(`Sending confirmation request to Watch/iPhone: [${request.id}] ${request.command}`);
-    this.broadcast({
-      type: 'confirmation_request',
-      request,
-    });
+    const queued = this.lifecycle.enqueue(request);
+    if (queued.status === 'overflow') {
+      const selectedOptionKey = this.lifecycle.defaultRejectKey(request);
+      this.onDecision(request.id, 'reject', { selectedOptionKey, reason: 'queue_overflow', source: 'system', request });
+      this.broadcast({
+        type: 'confirmation_completed',
+        id: request.id,
+        action: 'reject',
+        selectedOptionKey,
+        reason: 'queue_overflow',
+      });
+    }
   }
 
   cancelRequest(requestId) {
     console.log(`Cancelling confirmation request: [${requestId}]`);
+    this.lifecycle.resolve(requestId, {
+      selectedOptionKey: 'reject',
+      action: 'reject',
+      reason: 'cancelled',
+      source: 'system',
+    });
+    this.broadcast({
+      type: 'confirmation_cancelled',
+      id: requestId,
+    });
+  }
+
+  broadcastCleared(requestId) {
     this.broadcast({
       type: 'confirmation_cancelled',
       id: requestId,
@@ -237,6 +307,19 @@ class WatchWebSocketServer {
       }
       this.wss.close();
     }
+    this.lifecycle.close();
+  }
+
+  optionKeyToAction(request, selectedOptionKey, fallbackAction) {
+    if (selectedOptionKey === 'approve' || selectedOptionKey === 'reject') {
+      return selectedOptionKey;
+    }
+
+    const opt = (request.optionsList || []).find((item) => String(item.key) === String(selectedOptionKey));
+    if (opt) {
+      return opt.isDestructive ? 'reject' : 'approve';
+    }
+    return fallbackAction || 'reject';
   }
 }
 

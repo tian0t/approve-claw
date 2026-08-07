@@ -13,11 +13,11 @@ class AxBridge {
     // Attach decision listener to WebSocket server
     if (this.server) {
       const originalOnDecision = this.server.onDecision;
-      this.server.onDecision = (requestId, action) => {
+      this.server.onDecision = (requestId, action, meta = {}) => {
         if (originalOnDecision) {
-          originalOnDecision(requestId, action);
+          originalOnDecision(requestId, action, meta);
         }
-        this.handleDecision(requestId, action);
+        this.handleDecision(requestId, meta.selectedOptionKey || action);
       };
     }
   }
@@ -100,18 +100,18 @@ class AxBridge {
     }
   }
 
-  handleDecision(requestId, action) {
+  handleDecision(requestId, decisionKey) {
     if (!this.child || !this.child.stdin || !this.child.stdin.writable) return;
 
     if (this.activePromptId && requestId === this.activePromptId) {
       let buttonIdx = 1;
-      if (action === 'reject' || action === '5') {
+      if (decisionKey === 'reject' || decisionKey === '5') {
         buttonIdx = 2;
-      } else if (!isNaN(Number(action))) {
-        buttonIdx = Number(action);
+      } else if (!isNaN(Number(decisionKey))) {
+        buttonIdx = Number(decisionKey);
       }
 
-      console.log(`[AX Bridge] Forwarding remote decision '${action}' to AXUIElement button #${buttonIdx}...`);
+      console.log(`[AX Bridge] Forwarding remote decision '${decisionKey}' to AXUIElement button #${buttonIdx}...`);
       const cmdPayload = JSON.stringify({
         action: 'press',
         promptId: requestId,

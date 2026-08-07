@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const exec = require('child_process').exec;
-const crypto = require('crypto');
+const { createRequestId } = require('./request_id');
 
 class AntigravityIdeBridge {
   constructor(server, detector) {
@@ -28,26 +28,26 @@ class AntigravityIdeBridge {
 
     // Register decision handler on server
     const oldHandler = this.server.onDecision;
-    this.server.onDecision = (requestId, action) => {
+    this.server.onDecision = (requestId, action, meta = {}) => {
       if (this.detector.pendingRequest && this.detector.pendingRequest.id === requestId) {
         if (this.detector.pendingRequest.isIdePrompt || this.detector.pendingRequest.agent === 'Antigravity IDE') {
           console.log(`\n[CLAW Approve] Forwarding decision '${action}' to Antigravity IDE window via System Events...`);
-          this.sendIdeKeypress(action);
+          this.sendIdeKeypress(meta.selectedOptionKey || action);
           this.detector.acknowledge();
           this.activePromptStepIndex = -1;
           return;
         }
       }
       if (typeof oldHandler === 'function') {
-        oldHandler(requestId, action);
+        oldHandler(requestId, action, meta);
       }
     };
   }
 
-  sendIdeKeypress(action) {
-    let key = action;
-    if (action === 'approve') key = '1';
-    if (action === 'reject') key = '5';
+  sendIdeKeypress(decisionKey) {
+    let key = decisionKey;
+    if (decisionKey === 'approve') key = '1';
+    if (decisionKey === 'reject') key = '5';
     
     // Use osascript to send key '1'-'5' and Return to Google Antigravity IDE
     const script = `
@@ -203,7 +203,7 @@ class AntigravityIdeBridge {
           ];
 
           const req = {
-            id: 'req_' + crypto.randomBytes(4).toString('hex'),
+            id: createRequestId(),
             agent: 'Antigravity IDE',
             type: 'command_confirmation',
             title: title,

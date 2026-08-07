@@ -124,17 +124,20 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
             return false
         }
 
-        let payload = [
+        var payload: [String: String] = [
             "type": "confirmation_response",
             "id": requestId,
-            "action": action
+            "selectedOptionKey": action
         ]
+        if action == "approve" || action == "reject" {
+            payload["action"] = action
+        }
 
         sendJson(payload)
 
         // Add to history locally
         if let request = activeRequest, request.id == requestId {
-            let histAction = action == "approve" ? "Approved" : "Rejected"
+            let histAction = historyLabel(for: action, request: request)
             addHistory(requestId: requestId, agent: request.agent, command: request.command, action: histAction)
 
             // Clear request
@@ -237,7 +240,9 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
                             // If the active request matches, clear it
                             if self.activeRequest?.id == id {
                                 let action = json["action"] as? String ?? ""
-                                let histAction = action == "approve" ? "Approved" : "Rejected"
+                                let selectedKey = json["selectedOptionKey"] as? String ?? action
+                                let reason = json["reason"] as? String
+                                let histAction = self.historyLabel(for: selectedKey, request: self.activeRequest, reason: reason)
                                 self.addHistory(requestId: id, agent: self.activeRequest?.agent ?? "Agent", command: self.activeRequest?.command ?? "", action: histAction)
                                 self.activeRequest = nil
                                 PhoneConnectivity.shared.syncActiveRequest(nil)
@@ -271,6 +276,21 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
             history.insert(entry, at: 0)
             saveHistory()
         }
+    }
+
+    private func historyLabel(for selectedOptionKey: String, request: ApprovalRequest?, reason: String? = nil) -> String {
+        if reason == "timeout" {
+            return "Auto-Rejected (Timeout)"
+        }
+        if reason == "queue_overflow" {
+            return "Auto-Rejected (Queue Full)"
+        }
+        if selectedOptionKey == "approve" { return "Approved" }
+        if selectedOptionKey == "reject" { return "Rejected" }
+        if let option = request?.dynamicOptions.first(where: { $0.key == selectedOptionKey }) {
+            return option.label
+        }
+        return "Option \(selectedOptionKey)"
     }
     
     private func saveHistory() {

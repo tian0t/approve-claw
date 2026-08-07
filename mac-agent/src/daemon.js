@@ -10,9 +10,14 @@ const detector = new ConfirmationDetector();
 
 let activePty = null;
 
-const server = new WatchWebSocketServer(port, (requestId, action) => {
+const server = new WatchWebSocketServer(port, (requestId, action, meta = {}) => {
   if (detector.pendingRequest && detector.pendingRequest.id === requestId) {
-    const charToSubmit = action === 'approve' ? 'y\r' : 'n\r';
+    const selectedOptionKey = meta.selectedOptionKey || action;
+    const charToSubmit = selectedOptionKey === 'approve'
+      ? 'y\r'
+      : selectedOptionKey === 'reject'
+        ? 'n\r'
+        : `${selectedOptionKey}\r`;
     console.log(`\n[CLAW Approve Daemon] Forwarding decision '${action}' (${JSON.stringify(charToSubmit)}) to active CLI...`);
     if (activePty) {
       activePty.write(charToSubmit);
