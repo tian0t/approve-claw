@@ -14,8 +14,8 @@ enum SupportedAppAgent: String, Codable {
 }
 
 enum PromptInteractionType: String, Codable {
-    case appModal     = "APP_MODAL_TYPE"   // Desktop App Modal with clickable options/buttons
-    case numberedMenu = "NUM_TYPE"         // TUI / Numbered options
+    case appModal     = "APP_MODAL_TYPE"   // Desktop App Modal with dynamic clickable options/buttons
+    case numberedMenu = "NUM_TYPE"         // Numbered dynamic options
 }
 
 // MARK: - Data Models
@@ -57,6 +57,7 @@ struct ClickTarget {
 
 private let keyCodeMap: [Character: CGKeyCode] = [
     "1": 18, "2": 19, "3": 20, "4": 21, "5": 23,
+    "6": 22, "7": 26, "8": 28, "9": 25, "0": 29,
     "y": 16, "n": 45, "a": 0, " ": 49,
     "e": 14, "w": 13, "r": 15, "l": 37,
 ]
@@ -166,7 +167,7 @@ class VisionObserverEngine {
         try? VNImageRequestHandler(cgImage: image, options: [:]).perform([req])
     }
 
-    // MARK: - OCR Text Analysis (Strict App Filtering)
+    // MARK: - OCR Text Analysis & 1:1 Dynamic Option Mapping
 
     private func analyzeObservations(_ observations: [VNRecognizedTextObservation]) {
         let lines = observations.compactMap { $0.topCandidates(1).first?.string }
@@ -190,12 +191,12 @@ class VisionObserverEngine {
         if hash == lastScreenHash { return }
         lastScreenHash = hash
 
-        // 4. Extract clickable button/option coordinates
-        currentClickTargets = extractClickTargets(from: observations, agent: agent)
+        // 4. Extract ALL clickable button and numbered option coordinates from screen
+        currentClickTargets = extractClickTargets(from: observations, agent: agent, lines: lines)
 
         let command     = extractCommand(agent: agent, lines: lines, lower: lower)
         let risk        = evaluateRisk(command: command)
-        let optionsList = buildOptionList(agent: agent, targets: currentClickTargets, lower: lower)
+        let optionsList = buildDynamicOptionList(agent: agent, targets: currentClickTargets, lines: lines, lower: lower)
 
         let newId = "vis_\(Int(Date().timeIntervalSince1970))_\(Int.random(in: 1000...9999))"
         activePromptId = newId
@@ -259,7 +260,6 @@ class VisionObserverEngine {
             return .codexApp
         }
 
-        // Any other agent is explicitly ignored
         return nil
     }
 
@@ -285,10 +285,11 @@ class VisionObserverEngine {
         }
     }
 
-    // MARK: - Button & Option Coordinate Extraction
+    // MARK: - Dynamic Button & Option Coordinate Extraction
 
     private func extractClickTargets(from observations: [VNRecognizedTextObservation],
-                                     agent: SupportedAppAgent) -> [ClickTarget] {
+                                     agent: SupportedAppAgent,
+                                     lines: [String]) -> [ClickTarget] {
         var targets: [ClickTarget] = []
 
         for obs in observations {
@@ -303,9 +304,9 @@ class VisionObserverEngine {
 
             switch agent {
             case .antigravity:
-                if low == "proceed" || low == "allow" || low == "approve" || low == "execute" || low == "run" {
+                if low == "proceed" || low == "allow" || low == "approve" || low == "proceed & allow" || low == "execute" {
                     targets.append(ClickTarget(key: "approve", label: trim, screenPoint: point))
-                } else if low == "cancel" || low == "reject" || low == "deny" || low == "stop" {
+                } else if low == "cancel" || low == "reject" || low == "deny" || low == "cancel & deny" || low == "stop" {
                     targets.append(ClickTarget(key: "reject", label: trim, screenPoint: point))
                 }
 
@@ -318,11 +319,14 @@ class VisionObserverEngine {
 
             case .claudeCode:
                 let stripped = low.trimmingCharacters(in: CharacterSet(charactersIn: "❯>* \t"))
-                if stripped.hasPrefix("1") || stripped.contains("allow once") {
+                if let fc = stripped.unicodeScalars.first, fc.value >= 49 && fc.value <= 57 {
+                    let digit = String(stripped.prefix(1))
+                    targets.append(ClickTarget(key: digit, label: trim, screenPoint: point))
+                } else if stripped.contains("allow once") {
                     targets.append(ClickTarget(key: "1", label: trim, screenPoint: point))
-                } else if stripped.hasPrefix("2") || stripped.contains("allow for this session") || stripped.contains("allow always") {
+                } else if stripped.contains("allow for this session") || stripped.contains("allow always") {
                     targets.append(ClickTarget(key: "2", label: trim, screenPoint: point))
-                } else if stripped.hasPrefix("3") || stripped == "no" || stripped.hasPrefix("no ") || stripped.contains("esc)") {
+                } else if stripped == "no" || stripped.hasPrefix("no ") || stripped.contains("esc)") {
                     targets.append(ClickTarget(key: "3", label: trim, screenPoint: point))
                 }
             }
@@ -331,11 +335,29 @@ class VisionObserverEngine {
         return targets
     }
 
-    // MARK: - Option Lists for iPhone & Watch
+    // MARK: - 1:1 Dynamic Option List Generation
 
-    private func buildOptionList(agent: SupportedAppAgent,
-                                targets: [ClickTarget],
-                                lower: String) -> [VisionOptionItem] {
+    private func buildDynamicOptionList(agent: SupportedAppAgent,
+                                         targets: [ClickTarget],
+                                         lines: [String],
+                                         lower: String) -> [VisionOptionItem] {
+        // Priority 1: Map directly from extracted screen click targets
+        if !targets.isEmpty {
+            var items: [VisionOptionItem] = []
+            for t in targets {
+                if !items.contains(where: { $0.key == t.key }) {
+                    let low = t.label.lowercased()
+                    let isPrimary = t.key == "1" || t.key == "approve" || low.contains("allow") || low.contains("proceed")
+                    let isDestructive = t.key == "3" || t.key == "reject" || low.contains("reject") || low.contains("deny") || low.contains("cancel")
+                    items.append(VisionOptionItem(key: t.key, label: t.label, isPrimary: isPrimary, isDestructive: isDestructive))
+                }
+            }
+            if items.count >= 2 {
+                return items.sorted { (Int($0.key) ?? 99) < (Int($1.key) ?? 99) }
+            }
+        }
+
+        // Priority 2: Standard defaults per App Agent
         switch agent {
         case .antigravity:
             return [
@@ -454,7 +476,7 @@ class VisionObserverEngine {
         }
     }
 
-    // MARK: - Decision Dispatch (App-Focused Execution)
+    // MARK: - Decision Dispatch (Synchronous Mac Execution)
 
     private func readStdinLoop() {
         while let line = readLine() {
@@ -475,7 +497,7 @@ class VisionObserverEngine {
         activateApp(for: agent)
         usleep(120_000) // 120ms focus delay
 
-        // 2. App-specific interaction
+        // 2. Perform selection via Mouse Click or Command Line/Keyboard Key
         switch agent {
 
         // ── Antigravity IDE App ──
@@ -487,7 +509,6 @@ class VisionObserverEngine {
                 clickAt(target.screenPoint)
                 emitDict(["type": "action_dispatched", "agent": agent.rawValue, "method": "mouse_click", "sent": "click(\(Int(target.screenPoint.x)),\(Int(target.screenPoint.y)))"])
             } else {
-                // Keyboard fallback for Antigravity dialog: Enter (Proceed) or Escape (Cancel)
                 if isApprove {
                     sendKeystroke("\r")
                 } else {
@@ -551,7 +572,7 @@ class VisionObserverEngine {
         }
     }
 
-    // MARK: - Mouse Click
+    // MARK: - Simulated Mouse Click
 
     private func clickAt(_ point: CGPoint) {
         guard let down = CGEvent(mouseEventSource: nil, mouseType: .leftMouseDown,
@@ -563,7 +584,7 @@ class VisionObserverEngine {
         up.post(tap: .cghidEventTap)
     }
 
-    // MARK: - Keyboard Input
+    // MARK: - Command Line / Keyboard Keystroke
 
     private func sendKeystroke(_ str: String) {
         let source = CGEventSource(stateID: .hidSystemState)
