@@ -409,3 +409,12 @@
 {"timestamp":"2026-08-18T06:15:27.943Z","requestId":"sim_v2_3_1787033727943","type":"detected","agent":"Claude Code","risk":"high"}
 {"timestamp":"2026-08-18T06:15:27.943Z","requestId":"sim_v2_3_1787033727943","type":"delivered","agent":"Claude Code"}
 {"timestamp":"2026-08-18T06:15:29.944Z","requestId":"sim_v2_3_1787033727943","type":"decided","agent":"Claude Code","selectedOptionKey":"1","action":"approve","source":"simulation"}
+{"timestamp":"2026-08-18T06:36:27.213Z","requestId":"sim_app_1_1787034987206","type":"detected","agent":"Antigravity IDE","risk":"medium"}
+{"timestamp":"2026-08-18T06:36:27.214Z","requestId":"sim_app_1_1787034987206","type":"delivered","agent":"Antigravity IDE"}
+{"timestamp":"2026-08-18T06:36:29.416Z","requestId":"sim_app_1_1787034987206","type":"decided","agent":"Antigravity IDE","selectedOptionKey":"approve","action":"approve","source":"simulation"}
+{"timestamp":"2026-08-18T06:36:32.918Z","requestId":"sim_app_2_1787034992918","type":"detected","agent":"OpenAI Codex","risk":"high"}
+{"timestamp":"2026-08-18T06:36:32.918Z","requestId":"sim_app_2_1787034992918","type":"delivered","agent":"OpenAI Codex"}
+{"timestamp":"2026-08-18T06:36:35.121Z","requestId":"sim_app_2_1787034992918","type":"decided","agent":"OpenAI Codex","selectedOptionKey":"approve","action":"approve","source":"simulation"}
+{"timestamp":"2026-08-18T06:36:38.622Z","requestId":"sim_app_3_1787034998622","type":"detected","agent":"Claude Code","risk":"high"}
+{"timestamp":"2026-08-18T06:36:38.623Z","requestId":"sim_app_3_1787034998622","type":"delivered","agent":"Claude Code"}
+{"timestamp":"2026-08-18T06:36:40.824Z","requestId":"sim_app_3_1787034998622","type":"decided","agent":"Claude Code","selectedOptionKey":"1","action":"approve","source":"simulation"}

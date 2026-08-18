@@ -619,7 +619,7 @@ struct ContentView: View {
                         Text("How CLAW Works")
                             .font(.headline)
                             .foregroundColor(.blue)
-                        Text("CLAW allows you to remotely review and approve shell commands requested by AI agents (Claude, Codex, etc.) from your iPhone or Apple Watch.")
+                        Text("CLAW allows you to remotely review and approve execution requests from your desktop AI agent apps (Antigravity IDE, OpenAI Codex, Claude Code) directly on your iPhone or Apple Watch.")
                             .font(.subheadline)
                             .foregroundColor(.white.opacity(0.7))
                     }

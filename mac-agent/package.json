@@ -1,7 +1,7 @@
 {
   "name": "approve-claw",
   "version": "2.0.0",
-  "description": "Universal Screen Vision Remote AI Agent Permission Approval Bridge for iPhone & Apple Watch (Codex, Claude Code, Antigravity, Aider)",
+  "description": "Desktop App Screen Vision Remote AI Agent Permission Approval Bridge for iPhone & Apple Watch (Antigravity IDE, OpenAI Codex, Claude Code)",
   "main": "src/index.js",
   "repository": {
     "type": "git",
