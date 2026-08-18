@@ -237,7 +237,6 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
                         
                     case "confirmation_completed":
                         if let id = json["id"] as? String {
-                            // If the active request matches, clear it
                             if self.activeRequest?.id == id {
                                 let action = json["action"] as? String ?? ""
                                 let selectedKey = json["selectedOptionKey"] as? String ?? action
@@ -250,9 +249,24 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
                         }
                         
                     case "confirmation_cancelled":
+                        // confirmation_cancelled is also sent by the Vision Bridge as a
+                        // screen-cleared signal after the user already made a decision.
+                        // Only log "Cleared" if no history entry exists yet for this id.
                         if let id = json["id"] as? String {
                             if self.activeRequest?.id == id {
-                                self.addHistory(requestId: id, agent: self.activeRequest?.agent ?? "Agent", command: self.activeRequest?.command ?? "", action: "Cancelled")
+                                // Only add history if this request was NOT already resolved
+                                if !self.history.contains(where: { $0.requestId == id }) {
+                                    let reason = json["reason"] as? String
+                                    let histAction: String
+                                    if reason == "timeout" {
+                                        histAction = "Auto-Rejected (Timeout)"
+                                    } else if reason == "queue_overflow" {
+                                        histAction = "Auto-Rejected (Queue Full)"
+                                    } else {
+                                        histAction = "Cleared"
+                                    }
+                                    self.addHistory(requestId: id, agent: self.activeRequest?.agent ?? "Agent", command: self.activeRequest?.command ?? "", action: histAction)
+                                }
                                 self.activeRequest = nil
                                 PhoneConnectivity.shared.syncActiveRequest(nil)
                             }
@@ -279,18 +293,20 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
     }
 
     private func historyLabel(for selectedOptionKey: String, request: ApprovalRequest?, reason: String? = nil) -> String {
-        if reason == "timeout" {
-            return "Auto-Rejected (Timeout)"
-        }
-        if reason == "queue_overflow" {
-            return "Auto-Rejected (Queue Full)"
-        }
-        if selectedOptionKey == "approve" { return "Approved" }
-        if selectedOptionKey == "reject" { return "Rejected" }
+        if reason == "timeout" { return "Auto-Rejected (Timeout)" }
+        if reason == "queue_overflow" { return "Auto-Rejected (Queue Full)" }
+        if reason == "cancelled" { return "Cancelled" }
+        // Prefer the exact option label from the request's option list
         if let option = request?.dynamicOptions.first(where: { $0.key == selectedOptionKey }) {
             return option.label
         }
-        return "Option \(selectedOptionKey)"
+        // Legacy keys
+        if selectedOptionKey == "approve" { return "Approved" }
+        if selectedOptionKey == "reject" { return "Rejected" }
+        if selectedOptionKey == "y" || selectedOptionKey == "yes" { return "Approved (y)" }
+        if selectedOptionKey == "n" || selectedOptionKey == "no" { return "Denied (n)" }
+        if selectedOptionKey == "always" { return "Always Allow" }
+        return selectedOptionKey  // Show the key itself as a last resort
     }
     
     private func saveHistory() {
