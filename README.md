@@ -1,25 +1,21 @@
 <div align="center">
 
-> ⚠️ **Project Status**
->
-> A mobile approval app for AI agents. Out of quota, full of unsolved issues, and totally exhausted. Fixing it bit by bit when energy permits. Ouch...
-
 # 🐾 approve-claw v2.0 `[Universal Vision Engine]`
 
-**Universal Screen Vision Remote Permission Approval Bridge for macOS AI Coding Agents**
+**Desktop App Screen Vision Remote Permission Approval Bridge for macOS AI Agents**
 
-[![Status](https://img.shields.io/badge/status-v2.0--universal--vision-brightgreen.svg)](https://github.com/tian0t/approve-claw)
+[![Status](https://img.shields.io/badge/status-v2.0--desktop--vision-brightgreen.svg)](https://github.com/tian0t/approve-claw)
 [![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](https://github.com/tian0t/approve-claw)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Platforms](https://img.shields.io/badge/platforms-macOS%20%7C%20iOS%20%7C%20watchOS-lightgrey.svg)](https://github.com/tian0t/approve-claw)
 [![Apple Vision OCR](https://img.shields.io/badge/Engine-Apple%20Vision%20OCR-purple.svg)](https://developer.apple.com/documentation/vision)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18.0.0-339933.svg)](https://nodejs.org/)
 
-*When your AI agent asks for permission on screen, approve it from your wrist.*
+*When your desktop AI agent requests execution permission on screen, review and approve it directly from your iPhone or Apple Watch.*
 
-> **Universal Agent Support**: Antigravity IDE ✅ &nbsp;|&nbsp; Codex CLI ✅ &nbsp;|&nbsp; Claude Code ✅ &nbsp;|&nbsp; Aider / Cursor / Custom Agents ✅
+> **Supported Desktop App Agents**: Antigravity IDE ✅ &nbsp;|&nbsp; OpenAI Codex ✅ &nbsp;|&nbsp; Claude Code ✅
 
-[Overview](#-overview) • [Features](#-key-features) • [Architecture](#-system-architecture) • [Installation](#-installation)
+[Overview](#-overview) • [Workflow](#-complete-11-closed-loop-workflow) • [Supported Agents](#-supported-desktop-app-agents) • [Architecture](#-system-architecture) • [Installation](#-installation)
 
 </div>
 
@@ -27,73 +23,128 @@
 
 ## 📌 Overview
 
-**approve-claw v2.0** completely refactors permission handling by introducing a **Universal Apple Vision OCR Screen Engine**. Instead of maintaining fragile regex parsers for each individual agent, approve-claw captures on-screen confirmation dialogs with hardware-accelerated offline Vision OCR, presents a unified approval card on your **iPhone** and **Apple Watch**, and dispatches the exact keystrokes (`y`, `1`, `Enter`, etc.) back to your Mac.
+**approve-claw v2.0** is an offline, hardware-accelerated remote permission approval system designed specifically for macOS desktop AI coding agents. 
 
-| Agent | Engine | Support Status |
-|-------|--------|----------------|
-| **Antigravity IDE** | Apple Vision OCR + Keystroke Dispatcher | ✅ Full Universal Support |
-| **Codex CLI** | Apple Vision OCR + Keystroke Dispatcher | ✅ Full Universal Support |
-| **Claude Code CLI** | Apple Vision OCR + Keystroke Dispatcher | ✅ Full Universal Support |
-| **Aider / Cursor / Others** | Apple Vision OCR + Keystroke Dispatcher | ✅ Full Universal Support |
+Powered by **Apple ScreenCaptureKit** and the **Apple Vision OCR Engine (`vision_observer.swift`)**, `approve-claw` dynamically monitors your Mac screen for agent confirmation dialogs, extracts all selectable options and button coordinates in real time, mirrors them 1:1 onto your **iPhone** and **Apple Watch**, and synchronizes your mobile decision back to the Mac to execute via simulated mouse clicks or keystrokes.
+
+---
+
+## 🔄 Complete 1:1 Closed-Loop Workflow
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│  1. 电脑端屏幕出现选项                                                                 │
+│     Antigravity / Codex / Claude Code 桌面 App 弹出需要人工确认的命令或操作选择         │
+└─────────────────────────────────────────┬──────────────────────────────────────────────┘
+                                          │
+                                          ▼
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│  2. Apple Vision OCR 原生引擎毫秒级扫描与映射                                          │
+│     捕获屏幕 ➔ 动态提取 Agent 身份、执行命令、所有可见选项（文本标签 + 屏幕精确像素坐标）│
+└─────────────────────────────────────────┬──────────────────────────────────────────────┘
+                                          │
+                                          ▼
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│  3. 本地 WebSocket 实时推送 ➔ 手机 & 手表同步弹出                                      │
+│     • 📱 iPhone 弹出审批卡片并推送锁屏通知（完整渲染所有动态选项按钮）                  │
+│     • ⌚ Apple Watch 触发触觉震动，腕上同步呈现所有选项                                │
+└─────────────────────────────────────────┬──────────────────────────────────────────────┘
+                                          │
+                                          ▼
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│  4. 用户在 iPhone 或 Apple Watch 上点击任意一个选项                                    │
+│     例如点击："Proceed & Allow Execution"、"Approve" 或 "1. Yes, allow once"          │
+└─────────────────────────────────────────┬──────────────────────────────────────────────┘
+                                          │
+                                          ▼
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│  5. 决策信号实时回传 Mac 电脑闭环执行                                                  │
+│     ① NSWorkspace 自动激活目标 App 窗口（确保获得系统焦点）                            │
+│     ② 电脑端精准执行：                                                                 │
+│        • 🖱️ 模拟鼠标：CGEvent 鼠标直接点击该选项在屏幕上的精确坐标                      │
+│        • ⌨️ 命令行/按键：自动注入对应数字键/回车键 (Keystroke)                         │
+└────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🎯 Supported Desktop App Agents
+
+All supported agents are macOS desktop applications:
+
+| 桌面 App Agent | 屏幕识别特征与选项 | 手机 / 手表端映射 | 电脑端闭环执行机制 |
+| :--- | :--- | :--- | :--- |
+| 🚀 **Antigravity IDE** | 计划/执行审批模态框 (`Proceed`, `Allow`, `Planning Mode`, `Execute`) | `Proceed & Allow`<br>`Cancel & Deny` | 自动激活 Antigravity 窗口 ➔ 鼠标精准点击目标按钮坐标（回车/Esc 兜底） |
+| 🌐 **OpenAI Codex** | Web/桌面端审批卡片 (`Approve`, `Reject`, `Ask for approval`) | `Approve`<br>`Reject` | 自动激活 Codex 窗口 ➔ 鼠标精准点击 `Approve`/`Reject` 坐标 |
+| 🤖 **Claude Code** | 交互式选择菜单 (`1. Yes, allow once`, `2. Yes, allow...`, `3. No`) | `1. Yes, allow once`<br>`2. Yes, allow for this session`<br>`3. No` | 自动激活 Claude 窗口 ➔ 选项点击 / 注入数字编号 + 回车确认 |
 
 ---
 
 ## ✨ Key Features
 
-### ⌚ Native Apple Watch App
-- Independent watchOS 10+ app with a compact, single-line option layout purpose-built for small screens.
-- Haptic alerts fire on arrival of new permission requests.
+### ⌚ Native Apple Watch App (watchOS 10+)
+- Independent watchOS application built with SwiftUI liquid glass aesthetics.
+- Real-time synchronization with iPhone via `WatchConnectivity`.
+- Single-line fluid option buttons designed for fast wrist taps and haptic notifications.
 
-### 📱 iPhone App & Notifications
-- Real-time permission cards showing command details, target file paths, and risk level.
-- Lock-screen push notifications via `UNUserNotificationCenter` with quick `✅ Approve` / `❌ Reject` actions.
+### 📱 iPhone App & Lock Screen Notifications
+- Live status card showing Agent name, command code block, risk indicator, and all dynamic option buttons.
+- `UNUserNotificationCenter` push notifications with quick actions.
+- Full activity history log with exact option labels (e.g. `1. Yes, allow once`, `Approved`, `Proceed & Allow`).
 
-### 🤖 Antigravity IDE Brain Watcher 🚧
-- Monitors agent transcript logs under `~/.gemini/antigravity/brain/` in real time (polling every 400ms).
-- Automatically prioritizes the most recently active project conversation (`mtimeMs` sorting).
-- Filters out internal daemon activity to prevent noise on your devices.
+### 👁️ Native Swift Vision OCR Engine
+- Built with `ScreenCaptureKit` + Apple `Vision` framework (`VNRecognizeTextRequest`).
+- Pure native Swift implementation (`bin/vision_observer`) without third-party OCR dependencies.
+- Hardware-accelerated local scanning with smart cooldown and deduplication.
 
-### 🔀 Dynamic Option Mirroring
-- Parses and mirrors the exact choice list shown on your Mac (e.g. all 5 options from an Antigravity IDE permission prompt) — not just a binary approve/reject.
-
-### ⌨️ Keypress Injection
-- Forwards your mobile decision back to the active IDE window via macOS `System Events` (`keystroke` + `Return`), closing the loop without any manual input on Mac.
+### 🖱️ Intelligent GUI Click & Keystroke Dispatcher
+- Window focus management via `NSWorkspace` for instant app switching.
+- Precise `CGEvent` mouse cursor clicking based on OCR bounding boxes.
+- Full Retina / HiDPI logical coordinate calibration.
 
 ---
 
 ## 🏗️ System Architecture
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│                           macOS Host                             │
-│                                                                  │
-│  ┌──────────────────┐  ┌─────────────────┐  ┌────────────────┐   │
-│  │  Antigravity IDE │  │ Claude Code CLI │  │   Codex CLI    │   │
-│  │  [WIP: partial]  │  │   [planned]     │  │   [planned]    │   │
-│  └────────┬─────────┘  └───────┬─────────┘  └───────┬────────┘   │
-│           │                    │                    │            │
-│           │ Brain Transcripts  │ PTY Output    PTY  │            │
-│           └────────────────────┴────────────────────┘            │
-│                                │                                 │
-│                                ▼                                 │
-│   ┌──────────────────────────────────────────────────────────┐   │
-│   │                  approve-claw Mac Agent                  │   │
-│   │  - Antigravity IDE Brain Transcript Watcher              │   │
-│   │  - PTY Prompt Detector (Claude Code / Codex) [planned]   │   │
-│   │  - WebSocket Server (LAN, Port 8080)                     │   │
-│   │  - AppleScript Keypress Injection (System Events)        │   │
-│   └──────────────────────────┬───────────────────────────────┘   │
-└──────────────────────────────┼───────────────────────────────────┘
-                               │  Local WebSocket (ws://)
-                               ▼
-┌──────────────────────────────────────────────────────────────────┐
-│                       Apple Mobile Devices                       │
-│                                                                  │
-│   ┌────────────────────┐  WatchConnectivity  ┌───────────────┐   │
-│   │     iPhone App     │ ◄─────────────────► │  Apple Watch  │   │
-│   │  (iOS 17+ SwiftUI) │                     │  (watchOS 10+)│   │
-│   └────────────────────┘                     └───────────────┘   │
-└──────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────────────────────┐
+│                                     macOS Host                                        │
+│                                                                                       │
+│   ┌────────────────────────┐  ┌────────────────────────┐  ┌───────────────────────┐   │
+│   │   Antigravity IDE App  │  │    OpenAI Codex App    │  │    Claude Code App    │   │
+│   └───────────┬────────────┘  └───────────┬────────────┘  └───────────┬───────────┘   │
+│               │                           │                           │               │
+│               └───────────────────────────┼───────────────────────────┘               │
+│                                           │ ScreenCaptureKit Frame Stream             │
+│                                           ▼                                           │
+│   ┌───────────────────────────────────────────────────────────────────────────────┐   │
+│   │              vision_observer (Native Swift Binary Engine)                     │   │
+│   │  • VNRecognizeTextRequest (Hardware Accelerated OCR)                          │   │
+│   │  • Strict App Filter: Antigravity / OpenAI Codex / Claude Code                │   │
+│   │  • 1:1 Dynamic Option & Bounding Box Coordinate Extractor                     │   │
+│   │  • NSWorkspace Window Focusing + CGEvent Mouse Click / Keystroke Dispatcher   │   │
+│   └───────────────────────────────────────┬───────────────────────────────────────┘   │
+│                                           │ stdin / stdout JSON Stream                │
+│                                           ▼                                           │
+│   ┌───────────────────────────────────────────────────────────────────────────────┐   │
+│   │                       approve-claw Node.js Daemon                             │   │
+│   │  • vision_bridge.js (Subprocess Supervisor & Event Deduplication)             │   │
+│   │  • request_lifecycle.js (State Machine, Per-Agent Queue, Timeout Manager)    │   │
+│   │  • websocket.js (Local Encrypted WebSocket Gateway, Port 8080)                │   │
+│   └───────────────────────────────────────┬───────────────────────────────────────┘   │
+└───────────────────────────────────────────┼───────────────────────────────────────────┘
+                                            │ Local Wi-Fi WebSocket (ws://)
+                                            ▼
+┌───────────────────────────────────────────────────────────────────────────────────────┐
+│                                 Apple Mobile Devices                                  │
+│                                                                                       │
+│   ┌──────────────────────────────────────┐     WatchConnectivity   ┌──────────────┐   │
+│   │              iPhone App              │ ◄─────────────────────► │ Apple Watch  │   │
+│   │  • Dynamic Single-Line Option List   │                         │ • Wrist Tap  │   │
+│   │  • Lock-Screen Action Notifications  │                         │ • Haptics    │   │
+│   │  • Real-time Activity History Log    │                         │ • 1:1 Sync   │   │
+│   └──────────────────────────────────────┘                         └──────────────┘   │
+└───────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -104,87 +155,84 @@
 approve-claw/
 ├── mac-agent/
 │   ├── src/
-│   │   ├── index.js                   # CLI entrypoint & daemon supervisor
-│   │   ├── antigravity_ide_bridge.js  # Brain log watcher & active project filter
-│   │   ├── detector.js                # Prompt regex parser & option extractor
-│   │   └── websocket.js               # WebSocket server & device session manager
-│   ├── test/                          # Unit test suites
+│   │   ├── index.js               # CLI daemon entrypoint & supervisor
+│   │   ├── vision_observer.swift  # Native Apple Vision OCR & coordinate dispatcher
+│   │   ├── vision_bridge.js       # Bridge linking Swift OCR process to WebSocket
+│   │   ├── websocket.js           # WebSocket server & client session manager
+│   │   ├── request_lifecycle.js   # Request state serialization & timeout manager
+│   │   └── crypto.js              # PIN handshake & token authentication
+│   ├── bin/
+│   │   └── vision_observer        # Compiled native Swift binary
 │   └── package.json
 ├── ios/
 │   ├── Shared/
-│   │   ├── Models.swift               # Shared data models (ApprovalRequest, Option)
-│   │   └── NotificationManager.swift  # Push notifications & quick actions
-│   ├── WatchApprove/                  # iPhone app target
-│   └── WatchApproveWatch/             # Apple Watch app target
-├── project.yml                        # XcodeGen project configuration
+│   │   ├── Models.swift           # Shared data models (ApprovalRequest, DynamicOption)
+│   │   └── NotificationManager.swift # Push notifications & interactive actions
+│   ├── WatchApprove/              # iPhone SwiftUI application
+│   └── WatchApproveWatch/         # Apple Watch watchOS application
+├── project.yml                    # XcodeGen project configuration
 └── README.md
 ```
 
 ---
 
-## ⚠️ Status & Roadmap
-
-> [!WARNING]
-> **This project is a Work In Progress (WIP).**
->
-> - 🟢 **Working**: Unit tests pass (`npm test`), Xcode builds succeed (`** BUILD SUCCEEDED **`), and the system works end-to-end in controlled test scenarios.
-> - 🔴 **Known issues**: Under real-world workloads — particularly rapid sequential permission prompts, multi-file edits, or frequent project switching in Antigravity IDE — prompt delivery may be delayed or missed. State machine improvements are ongoing.
-
-### Roadmap
-
-**Core (Antigravity IDE)**
-- [x] Multi-project conversation prioritization
-- [x] Apple Watch native single-line dynamic option layout
-- [x] Push notifications with Quick Actions
-- [ ] Replace AppleScript `System Events` with Accessibility API `[planned]`
-- [ ] Remote APNs push over cellular (no LAN required) `[planned]`
-- [ ] Concurrent multi-agent request queue `[planned]`
-
-**Agent Support**
-- [~] Antigravity IDE — unit tests pass, real-world task execution unstable `[wip]`
-- [ ] Claude Code CLI `[planned]`
-- [ ] Codex CLI `[planned]`
-
----
-
-## 🚀 Installation
+## 🚀 Installation & Getting Started
 
 ### Prerequisites
 
-| Requirement | Version |
-|-------------|---------|
-| macOS | 13.0 (Ventura)+ |
-| Node.js | 18.0+ |
-| Xcode | 15.0+ |
-| xcodegen | latest (`brew install xcodegen`) |
-| iPhone | iOS 17.0+ |
-| Apple Watch | watchOS 10.0+ |
+| Requirement | Supported Version |
+| :--- | :--- |
+| **macOS** | macOS 13.0 (Ventura) or newer |
+| **Node.js** | Node.js 18.0+ |
+| **Xcode** | Xcode 15.0+ |
+| **XcodeGen** | `brew install xcodegen` |
+| **iOS / watchOS** | iOS 17.0+ / watchOS 10.0+ |
 
 > [!IMPORTANT]
-> Enable **Accessibility** permissions for `System Events` under **System Settings → Privacy & Security → Accessibility** to allow keypress injection.
+> **macOS Permissions Setup**:
+> 1. **Screen Recording**: Allow your Terminal / app running `approve-claw` in **System Settings → Privacy & Security → Screen Recording**.
+> 2. **Accessibility**: Allow in **System Settings → Privacy & Security → Accessibility** to permit `CGEvent` mouse clicks and keystrokes.
 
-### 1. Start the Mac Agent
+---
+
+### Step 1: Start the Mac Bridge Daemon
 
 ```bash
-cd mac-agent
+# 1. Clone repository
+git clone https://github.com/tian0t/approve-claw.git
+cd approve-claw/mac-agent
+
+# 2. Install dependencies & compile Swift Vision engine
 npm install
-node src/index.js daemon
+npm run build:vision
+
+# 3. Launch daemon
+npm start
 ```
 
-### 2. Build & Deploy the iOS App
+When started, the terminal will display the LAN IP address and a 6-digit pairing PIN code.
+
+---
+
+### Step 2: Build & Install the iOS / Apple Watch App
 
 ```bash
+cd ../ios
 xcodegen generate
 ```
 
-Then open `WatchApprove.xcodeproj` in Xcode and press **`⌘ + R`** to build and run on your paired iPhone and Apple Watch.
+1. Open `WatchApprove.xcodeproj` in Xcode.
+2. Select your iPhone as the build target and press **`⌘ + R`** to run.
+3. In the iPhone app, input your Mac's LAN IP address and 6-digit PIN code to complete pairing.
+4. Your paired Apple Watch will automatically sync and be ready to receive live approval requests!
 
 ---
 
 ## 🔒 Security & Privacy
 
-- **Local-network only**: All communication happens over LAN/Wi-Fi. No data is ever sent to external servers.
-- **PIN-based pairing**: Device pairing is protected by a 6-digit PIN handshake with persistent session tokens.
+- **100% Offline & Local**: All OCR processing runs locally via Apple Neural Engine / Vision framework. All WebSocket communication remains strictly within your local Wi-Fi network.
+- **PIN-Protected Handshake**: Pairing requires a 6-digit one-time code generating persistent cryptographic session tokens.
+- **No Cloud Dependencies**: Zero external API keys or cloud relay required.
 
 ---
 
