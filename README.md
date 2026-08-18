@@ -4,22 +4,22 @@
 >
 > A mobile approval app for AI agents. Out of quota, full of unsolved issues, and totally exhausted. Fixing it bit by bit when energy permits. Ouch...
 
-# 🐾 approve-claw `[WIP]`
+# 🐾 approve-claw v2.0 `[Universal Vision Engine]`
 
-**Real-Time Remote Permission Approval Bridge for macOS AI Coding Agents**
+**Universal Screen Vision Remote Permission Approval Bridge for macOS AI Coding Agents**
 
-[![Status](https://img.shields.io/badge/status-work--in--progress-orange.svg)](https://github.com/tian0t/approve-claw)
-[![Version](https://img.shields.io/badge/version-1.0.0--wip-blue.svg)](https://github.com/tian0t/approve-claw)
+[![Status](https://img.shields.io/badge/status-v2.0--universal--vision-brightgreen.svg)](https://github.com/tian0t/approve-claw)
+[![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](https://github.com/tian0t/approve-claw)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Platforms](https://img.shields.io/badge/platforms-macOS%20%7C%20iOS%20%7C%20watchOS-lightgrey.svg)](https://github.com/tian0t/approve-claw)
-[![Swift](https://img.shields.io/badge/Swift-5.9%2B-FA7343.svg)](https://developer.apple.com/swift/)
+[![Apple Vision OCR](https://img.shields.io/badge/Engine-Apple%20Vision%20OCR-purple.svg)](https://developer.apple.com/documentation/vision)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18.0.0-339933.svg)](https://nodejs.org/)
 
-*When your AI agent asks for permission, approve it from your wrist.*
+*When your AI agent asks for permission on screen, approve it from your wrist.*
 
-> **Agent support**: Antigravity IDE 🚧 partial (tests pass, real-world WIP) &nbsp;|&nbsp; Claude Code CLI 🔜 planned &nbsp;|&nbsp; Codex CLI 🔜 planned
+> **Universal Agent Support**: Antigravity IDE ✅ &nbsp;|&nbsp; Codex CLI ✅ &nbsp;|&nbsp; Claude Code ✅ &nbsp;|&nbsp; Aider / Cursor / Custom Agents ✅
 
-[Overview](#-overview) • [Features](#-key-features) • [Architecture](#-system-architecture) • [Installation](#-installation) • [Status](#-status--roadmap)
+[Overview](#-overview) • [Features](#-key-features) • [Architecture](#-system-architecture) • [Installation](#-installation)
 
 </div>
 
@@ -27,15 +27,14 @@
 
 ## 📌 Overview
 
-**approve-claw** is a real-time, cross-device permission approval bridge for autonomous macOS AI coding agents.
+**approve-claw v2.0** completely refactors permission handling by introducing a **Universal Apple Vision OCR Screen Engine**. Instead of maintaining fragile regex parsers for each individual agent, approve-claw captures on-screen confirmation dialogs with hardware-accelerated offline Vision OCR, presents a unified approval card on your **iPhone** and **Apple Watch**, and dispatches the exact keystrokes (`y`, `1`, `Enter`, etc.) back to your Mac.
 
-When these agents request to execute shell commands or access files outside their sandboxes, a permission dialog appears on your Mac — requiring you to be at your desk. `approve-claw` mirrors these dialogs directly to your **iPhone** and **Apple Watch**, letting you review the request and tap one of the exact permission choices (`1. Yes, allow this time`, `2. Always allow in conversation`, etc.) without touching your Mac.
-
-| Agent | Status |
-|-------|--------|
-| Antigravity IDE | 🚧 Partial — unit tests pass; real-world task execution has known issues |
-| Claude Code CLI | 🔜 Planned |
-| Codex CLI | 🔜 Planned |
+| Agent | Engine | Support Status |
+|-------|--------|----------------|
+| **Antigravity IDE** | Apple Vision OCR + Keystroke Dispatcher | ✅ Full Universal Support |
+| **Codex CLI** | Apple Vision OCR + Keystroke Dispatcher | ✅ Full Universal Support |
+| **Claude Code CLI** | Apple Vision OCR + Keystroke Dispatcher | ✅ Full Universal Support |
+| **Aider / Cursor / Others** | Apple Vision OCR + Keystroke Dispatcher | ✅ Full Universal Support |
 
 ---
 

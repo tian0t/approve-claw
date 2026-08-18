@@ -1,7 +1,7 @@
 {
   "name": "approve-claw",
-  "version": "1.0.0-wip",
-  "description": "[WIP] Remote AI Agent Permission Approval Bridge for iPhone & Apple Watch (Antigravity IDE, Claude Code, Codex)",
+  "version": "2.0.0",
+  "description": "Universal Screen Vision Remote AI Agent Permission Approval Bridge for iPhone & Apple Watch (Codex, Claude Code, Antigravity, Aider)",
   "main": "src/index.js",
   "repository": {
     "type": "git",
@@ -9,8 +9,11 @@
   },
   "keywords": [
     "ai-agent",
+    "apple-vision-ocr",
+    "screen-vision",
     "antigravity-ide",
     "claude-code",
+    "codex",
     "approval",
     "apple-watch",
     "watchos",
@@ -28,12 +31,13 @@
   },
   "scripts": {
     "start": "node src/index.js",
-    "daemon": "node src/index.js daemon",
-    "mock": "node src/mock-agent.js",
+    "build:vision": "swiftc -O src/vision_observer.swift -o bin/vision_observer",
     "test": "node --test test/*.test.js"
   },
   "dependencies": {
     "node-pty": "^1.1.0-beta5",
+    "tweetnacl": "^1.0.3",
+    "tweetnacl-util": "^0.15.1",
     "ws": "^8.16.0"
   }
 }
