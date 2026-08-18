@@ -1,5 +1,9 @@
 <div align="center">
 
+> ⚠️ **Project Status: Work In Progress (WIP)**
+>
+> A remote mobile approval companion for macOS desktop AI agents. Active ongoing development and continuous iteration. Fixing edge cases and polishing stability bit by bit.
+
 # 🐾 approve-claw v2.0 `[Universal Vision Engine]`
 
 **Desktop App Screen Vision Remote Permission Approval Bridge for macOS AI Agents**
@@ -33,36 +37,36 @@ Powered by **Apple ScreenCaptureKit** and the **Apple Vision OCR Engine (`vision
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│  1. 电脑端屏幕出现选项                                                                 │
-│     Antigravity / Codex / Claude Code 桌面 App 弹出需要人工确认的命令或操作选择         │
+│  1. Prompt Appears on Mac Screen                                                      │
+│     Antigravity / Codex / Claude Code desktop app displays an action approval dialog.  │
 └─────────────────────────────────────────┬──────────────────────────────────────────────┘
                                           │
                                           ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│  2. Apple Vision OCR 原生引擎毫秒级扫描与映射                                          │
-│     捕获屏幕 ➔ 动态提取 Agent 身份、执行命令、所有可见选项（文本标签 + 屏幕精确像素坐标）│
+│  2. Millisecond Screen Capture & Apple Vision OCR                                      │
+│     Scans screen ➔ Extracts agent type, command, option labels, and pixel coordinates.  │
 └─────────────────────────────────────────┬──────────────────────────────────────────────┘
                                           │
                                           ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│  3. 本地 WebSocket 实时推送 ➔ 手机 & 手表同步弹出                                      │
-│     • 📱 iPhone 弹出审批卡片并推送锁屏通知（完整渲染所有动态选项按钮）                  │
-│     • ⌚ Apple Watch 触发触觉震动，腕上同步呈现所有选项                                │
+│  3. Local WebSocket Broadcast ➔ iPhone & Apple Watch Sync                              │
+│     • 📱 iPhone displays interactive approval card & lock-screen push notification.    │
+│     • ⌚ Apple Watch triggers haptic alert and displays 1:1 mirrored option buttons.   │
 └─────────────────────────────────────────┬──────────────────────────────────────────────┘
                                           │
                                           ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│  4. 用户在 iPhone 或 Apple Watch 上点击任意一个选项                                    │
-│     例如点击："Proceed & Allow Execution"、"Approve" 或 "1. Yes, allow once"          │
+│  4. User Selects an Option on iPhone or Apple Watch                                    │
+│     E.g., tap "Proceed & Allow Execution", "Approve", or "1. Yes, allow once".        │
 └─────────────────────────────────────────┬──────────────────────────────────────────────┘
                                           │
                                           ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│  5. 决策信号实时回传 Mac 电脑闭环执行                                                  │
-│     ① NSWorkspace 自动激活目标 App 窗口（确保获得系统焦点）                            │
-│     ② 电脑端精准执行：                                                                 │
-│        • 🖱️ 模拟鼠标：CGEvent 鼠标直接点击该选项在屏幕上的精确坐标                      │
-│        • ⌨️ 命令行/按键：自动注入对应数字键/回车键 (Keystroke)                         │
+│  5. Decision Transmitted Back to Mac for Closed-Loop Execution                         │
+│     ① NSWorkspace activates target desktop app window to gain system focus.            │
+│     ② Execution:                                                                       │
+│        • 🖱️ Simulated Mouse: CGEvent clicks exact button coordinates on screen.        │
+│        • ⌨️ Keystroke Injection: Dispatches numeric key / Return into active window.   │
 └────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -72,11 +76,11 @@ Powered by **Apple ScreenCaptureKit** and the **Apple Vision OCR Engine (`vision
 
 All supported agents are macOS desktop applications:
 
-| 桌面 App Agent | 屏幕识别特征与选项 | 手机 / 手表端映射 | 电脑端闭环执行机制 |
+| Desktop App Agent | Screen Recognition Context | Mobile / Watch Option Mapping | Mac Closed-Loop Execution |
 | :--- | :--- | :--- | :--- |
-| 🚀 **Antigravity IDE** | 计划/执行审批模态框 (`Proceed`, `Allow`, `Planning Mode`, `Execute`) | `Proceed & Allow`<br>`Cancel & Deny` | 自动激活 Antigravity 窗口 ➔ 鼠标精准点击目标按钮坐标（回车/Esc 兜底） |
-| 🌐 **OpenAI Codex** | Web/桌面端审批卡片 (`Approve`, `Reject`, `Ask for approval`) | `Approve`<br>`Reject` | 自动激活 Codex 窗口 ➔ 鼠标精准点击 `Approve`/`Reject` 坐标 |
-| 🤖 **Claude Code** | 交互式选择菜单 (`1. Yes, allow once`, `2. Yes, allow...`, `3. No`) | `1. Yes, allow once`<br>`2. Yes, allow for this session`<br>`3. No` | 自动激活 Claude 窗口 ➔ 选项点击 / 注入数字编号 + 回车确认 |
+| 🚀 **Antigravity IDE** | Implementation plan / execution modals (`Proceed`, `Allow`, `Planning Mode`, `Execute`) | `Proceed & Allow`<br>`Cancel & Deny` | Focuses Antigravity window ➔ Clicks button coordinates (Enter/Esc fallback) |
+| 🌐 **OpenAI Codex** | Web & Desktop approval cards (`Approve`, `Reject`, `Ask for approval`) | `Approve`<br>`Reject` | Focuses Codex window ➔ Clicks `Approve`/`Reject` coordinates |
+| 🤖 **Claude Code** | Interactive selection menus (`1. Yes, allow once`, `2. Yes, allow...`, `3. No`) | `1. Yes, allow once`<br>`2. Yes, allow for this session`<br>`3. No` | Focuses Claude window ➔ Clicks option / Injects numeric key + Return |
 
 ---
 
@@ -89,7 +93,7 @@ All supported agents are macOS desktop applications:
 
 ### 📱 iPhone App & Lock Screen Notifications
 - Live status card showing Agent name, command code block, risk indicator, and all dynamic option buttons.
-- `UNUserNotificationCenter` push notifications with quick actions.
+- `UNUserNotificationCenter` push notifications with quick interactive actions.
 - Full activity history log with exact option labels (e.g. `1. Yes, allow once`, `Approved`, `Proceed & Allow`).
 
 ### 👁️ Native Swift Vision OCR Engine
