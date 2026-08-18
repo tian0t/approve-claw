@@ -1,6 +1,8 @@
 .DS_Store
 node_modules/
 mac-agent/config.json
+mac-agent/events.jsonl
+mac-agent/bin/
 ios/**/xcuserdata/
 DerivedData/
 build/

@@ -1,2 +1,2 @@
 #!/bin/bash
-exec node "/Users/yu./Desktop/program/claude-watch/mac-agent/src/index.js" "$@"
+exec node "$(cd "$(dirname "$0")" && pwd)/src/index.js" "$@"

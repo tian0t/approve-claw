@@ -54,10 +54,19 @@ class AXObserverEngine {
         let pid = activeApp.processIdentifier
         let appName = activeApp.localizedName ?? "AI Agent App"
 
-        // Filter out non-target applications (e.g. Chrome, Finder, Xcode, Safari, Bilibili)
-        let allowedApps = ["antigravity", "google antigravity", "terminal", "iterm2", "code", "codex", "simulator"]
-        let lowerAppName = appName.lowercased()
-        if !allowedApps.contains(where: { lowerAppName.contains($0) }) {
+        // Filter out non-target applications by bundle identifier
+        let allowedBundleIDs = [
+            "com.google.antigravity",          // Google Antigravity IDE
+            "com.google.antigravity-dev",
+            "com.openai.codex",                // OpenAI Codex (ChatGPT.app)
+            "com.openai.chat",
+            "com.anthropic.claudefordesktop",  // Claude Desktop (Claude Code)
+            "com.anthropic.claude",
+            "com.apple.Terminal",
+            "com.googlecode.iterm2",
+        ]
+        guard let bundleID = activeApp.bundleIdentifier,
+              allowedBundleIDs.contains(bundleID) else {
             return
         }
 
@@ -108,8 +117,8 @@ class AXObserverEngine {
         for (idx, b) in buttonsFound.enumerated() {
             let keyIndex = idx + 1
             buttonElementMap[keyIndex] = b.element
-            let isDestructive = b.label.lowercased().contains("no") || b.label.lowercased().contains("deny") || b.label.lowercased().contains("cancel") || b.label.contains("拒绝") || b.label.contains("5")
-            let isPrimary = keyIndex == 1 || b.label.lowercased().contains("yes") || b.label.lowercased().contains("allow") || b.label.contains("允许")
+            let isDestructive = b.label.lowercased().contains("no") || b.label.lowercased().contains("deny") || b.label.lowercased().contains("cancel") || b.label.contains("5")
+            let isPrimary = keyIndex == 1 || b.label.lowercased().contains("yes") || b.label.lowercased().contains("allow")
             
             buttonInfos.append(AXButtonInfo(
                 index: keyIndex,
@@ -193,14 +202,12 @@ class AXObserverEngine {
             "allow execution",
             "wants to run the following",
             "permission required",
-            "允许运行",
-            "确认执行"
         ]
         
         let hasStrictPhrase = strictPromptPhrases.contains { text.contains($0) }
         let hasNumberedOptions = buttons.contains { b in
             let lower = b.lowercased()
-            return lower.contains("1. yes") || lower.contains("1. allow") || lower.contains("yes, allow") || lower.contains("允许")
+            return lower.contains("1. yes") || lower.contains("1. allow") || lower.contains("yes, allow")
         }
 
         return hasStrictPhrase || hasNumberedOptions
@@ -211,7 +218,7 @@ class AXObserverEngine {
         var description = "\(appName) Security Confirmation"
 
         for line in textCollected {
-            if line.contains("wants to run") || line.contains("Confirm the command") || line.contains("Allow") || line.contains("允许") {
+            if line.contains("wants to run") || line.contains("Confirm the command") || line.contains("Allow") {
                 description = line
             }
             if line.hasPrefix("npm ") || line.hasPrefix("git ") || line.hasPrefix("node ") || line.hasPrefix("python") || line.hasPrefix("rm ") || line.hasPrefix("sudo ") || line.hasPrefix("chmod ") {

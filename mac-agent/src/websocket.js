@@ -13,7 +13,6 @@ const { encryptBox } = require('./crypto');
 const HEARTBEAT_INTERVAL_MS = 30000;
 const MAX_AUTH_ATTEMPTS = 3;
 const REQUEST_TIMEOUT_MS = Number(process.env.WATCHAPPROVE_REQUEST_TIMEOUT_MS || 30000);
-const PER_AGENT_QUEUE_LIMIT = Number(process.env.WATCHAPPROVE_PER_AGENT_QUEUE_LIMIT || 20);
 
 function getLanIps() {
   const ifaces = os.networkInterfaces();
@@ -47,7 +46,6 @@ class WatchWebSocketServer {
 
     this.lifecycle = new RequestLifecycleManager({
       timeoutMs: Number.isFinite(REQUEST_TIMEOUT_MS) && REQUEST_TIMEOUT_MS > 0 ? REQUEST_TIMEOUT_MS : 30000,
-      perAgentQueueLimit: Number.isFinite(PER_AGENT_QUEUE_LIMIT) && PER_AGENT_QUEUE_LIMIT > 0 ? PER_AGENT_QUEUE_LIMIT : 20,
       eventLogPath: path.join(path.dirname(this.configPath), 'events.jsonl'),
       onActivate: (request) => {
         if (this.detector) {
@@ -58,19 +56,30 @@ class WatchWebSocketServer {
           request,
         });
       },
-      onResolve: ({ request, selectedOptionKey, action, reason, source }) => {
+      onResolve: ({ request, selectedOptionKey, action, reason, source, dispatch }) => {
         if (this.detector && this.detector.pendingRequest && this.detector.pendingRequest.id === request.id) {
           this.detector.acknowledge();
         }
         this.completedRequestIds.add(request.id);
-        this.onDecision(request.id, action, { selectedOptionKey, reason, source, request });
-        this.broadcast({
-          type: 'confirmation_completed',
-          id: request.id,
-          action,
-          selectedOptionKey,
-          reason,
-        });
+        if (dispatch) {
+          // Real user decision: route it to the owning engine and confirm on devices.
+          this.onDecision(request.id, action, { selectedOptionKey, reason, source, request });
+          this.broadcast({
+            type: 'confirmation_completed',
+            id: request.id,
+            action,
+            selectedOptionKey,
+            reason,
+          });
+        } else {
+          // Clear-only (timeout/superseded/cancelled): dismiss the card on
+          // devices without dispatching anything to the desktop app.
+          this.broadcast({
+            type: 'confirmation_cancelled',
+            id: request.id,
+            reason,
+          });
+        }
       },
     });
 
@@ -251,29 +260,22 @@ class WatchWebSocketServer {
   }
 
   resendPending(ws) {
-    if (this.detector && this.detector.pendingRequest && !this.completedRequestIds.has(this.detector.pendingRequest.id)) {
+    for (const request of this.lifecycle.listActiveRequests()) {
+      if (this.completedRequestIds.has(request.id)) continue;
       ws.send(JSON.stringify({
         type: 'confirmation_request',
-        request: this.detector.pendingRequest,
+        request,
       }));
-      console.log(`Resent pending request to new client: [${this.detector.pendingRequest.id}]`);
+      console.log(`Resent active request to new client: [${request.id}]`);
     }
   }
 
   sendRequest(request) {
     console.log(`Sending confirmation request to Watch/iPhone: [${request.id}] ${request.command}`);
     const queued = this.lifecycle.enqueue(request);
-    if (queued.status === 'overflow') {
-      const selectedOptionKey = this.lifecycle.defaultRejectKey(request);
-      this.onDecision(request.id, 'reject', { selectedOptionKey, reason: 'queue_overflow', source: 'system', request });
-      this.broadcast({
-        type: 'confirmation_completed',
-        id: request.id,
-        action: 'reject',
-        selectedOptionKey,
-        reason: 'queue_overflow',
-      });
-      return;
+    if (queued.status === 'duplicate') {
+      console.log(`Dropped duplicate detection for [${request.id}] (already active: ${request.agent}).`);
+      return queued.status;
     }
 
     // If relay URL configured and target device offline, forward encrypted payload via relay
@@ -319,25 +321,23 @@ class WatchWebSocketServer {
           req.end();
 
           this.logMeta('forwarded via relay', { to: targetDeviceId });
-          return;
+          return queued.status;
         } catch (e) {
           console.error('[relay] encrypt/forward error', e && e.message);
         }
       }
     }
+
+    return queued.status;
   }
 
   cancelRequest(requestId) {
     console.log(`Cancelling confirmation request: [${requestId}]`);
     this.lifecycle.resolve(requestId, {
-      selectedOptionKey: 'reject',
-      action: 'reject',
+      action: 'clear',
       reason: 'cancelled',
       source: 'system',
-    });
-    this.broadcast({
-      type: 'confirmation_cancelled',
-      id: requestId,
+      dispatch: false,
     });
   }
 

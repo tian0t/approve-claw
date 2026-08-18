@@ -1,4 +1,5 @@
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const exec = require('child_process').exec;
 const { createRequestId } = require('./request_id');
@@ -7,13 +8,13 @@ class AntigravityIdeBridge {
   constructor(server, detector) {
     this.server = server;
     this.detector = detector;
-    this.brainDir = '/Users/yu./.gemini/antigravity/brain';
+    this.brainDir = process.env.ANTIGRAVITY_BRAIN_DIR || path.join(os.homedir(), '.gemini/antigravity/brain');
     this.lastProcessedSteps = new Map(); // filepath -> lastProcessedStepIndex
     this.processedStepKeys = new Set();  // Set of "filepath_stepIndex"
     this.activePromptStepIndex = -1;
     this.isWatching = false;
-    // Current meta conversation ID building CLAW Approve
-    this.selfConvId = 'd7245b36-d24e-4576-9b4a-c9c2486467a7';
+    // Optional: exclude the meta conversation that is developing CLAW Approve itself.
+    this.selfConvId = process.env.APPROVE_CLAW_SELF_CONV_ID || null;
   }
 
   start() {
@@ -81,8 +82,8 @@ class AntigravityIdeBridge {
       const activeTranscripts = [];
 
       for (const convId of convDirs) {
-        // Exclude the current meta-development conversation (claude-watch)
-        if (convId === this.selfConvId) {
+        // Exclude the current meta-development conversation if configured
+        if (this.selfConvId && convId === this.selfConvId) {
           continue;
         }
 

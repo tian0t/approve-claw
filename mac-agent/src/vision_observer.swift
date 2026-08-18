@@ -96,10 +96,11 @@ private let agentBundleIDs: [SupportedAppAgent: [String]] = [
 class VisionObserverEngine {
     private var isScanning = false
     private var lastScreenHash: Int = 0
+    private var lastPromptSignature: String = ""
+    private var noContextFrames = 0
     private var activePromptId: String = ""
     private var activePrompt: VisionPromptPayload? = nil
     private var activeAgent: SupportedAppAgent? = nil
-    private var isApprovedRecently = false
     private var cooldownUntil: Date = .distantPast
 
     private var captureWidth: Int = 1920
@@ -163,7 +164,7 @@ class VisionObserverEngine {
         }
         req.recognitionLevel = .accurate
         req.usesLanguageCorrection = false
-        req.recognitionLanguages = ["en-US", "zh-Hans"]
+        req.recognitionLanguages = ["en-US"]
         try? VNImageRequestHandler(cgImage: image, options: [:]).perform([req])
     }
 
@@ -186,7 +187,9 @@ class VisionObserverEngine {
             return
         }
 
-        // 3. Deduplication: skip identical screens
+        noContextFrames = 0
+
+        // 3. Cheap skip for pixel-identical frames
         let hash = lower.prefix(500).hashValue
         if hash == lastScreenHash { return }
         lastScreenHash = hash
@@ -197,6 +200,13 @@ class VisionObserverEngine {
         let command     = extractCommand(agent: agent, lines: lines, lower: lower)
         let risk        = evaluateRisk(command: command)
         let optionsList = buildDynamicOptionList(agent: agent, targets: currentClickTargets, lines: lines, lower: lower)
+
+        // 5. Semantic dedup: the same logical dialog keeps ONE id while it stays
+        //    on screen, even if minor rendering changes alter the raw screen
+        //    hash. This prevents duplicate cards and queue flooding.
+        let signature = promptSignature(agent: agent, command: command, optionsList: optionsList)
+        if activePrompt != nil && signature == lastPromptSignature { return }
+        lastPromptSignature = signature
 
         let newId = "vis_\(Int(Date().timeIntervalSince1970))_\(Int.random(in: 1000...9999))"
         activePromptId = newId
@@ -223,15 +233,28 @@ class VisionObserverEngine {
         cooldownUntil = Date().addingTimeInterval(2.5)
     }
 
+    // MARK: - Prompt Signature & Clear Detection
+
+    private func promptSignature(agent: SupportedAppAgent, command: String, optionsList: [VisionOptionItem]) -> String {
+        let normalizedCommand = command.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedOptions = optionsList
+            .map { "\($0.key):\($0.label.lowercased().trimmingCharacters(in: .whitespacesAndNewlines))" }
+            .joined(separator: "|")
+        return "\(agent.rawValue)|\(normalizedCommand)|\(normalizedOptions)"
+    }
+
+    // The active dialog counts as gone only after several consecutive frames
+    // with no approval context, which avoids false clears on OCR hiccups.
     private func handleClear() {
-        if activePrompt != nil && isApprovedRecently {
-            activePrompt       = nil
-            activeAgent        = nil
-            isApprovedRecently = false
-            lastScreenHash     = 0
-            currentClickTargets = []
-            emitDict(["type": "prompt_cleared"])
-        }
+        guard activePrompt != nil else { return }
+        noContextFrames += 1
+        guard noContextFrames >= 3 else { return }
+        activePrompt        = nil
+        activeAgent         = nil
+        lastPromptSignature = ""
+        lastScreenHash      = 0
+        currentClickTargets = []
+        emitDict(["type": "prompt_cleared"])
     }
 
     // MARK: - Strict App Detection (Only Antigravity, Codex, Claude Code)
@@ -483,15 +506,60 @@ class VisionObserverEngine {
             guard let data = line.data(using: .utf8),
                   let cmd  = try? JSONDecoder().decode(VisionCommandInput.self, from: data) else { continue }
             DispatchQueue.main.async { [weak self] in
-                self?.dispatchDecision(action: cmd.action)
+                self?.dispatchDecision(action: cmd.action, promptId: cmd.promptId)
             }
         }
     }
 
-    private func dispatchDecision(action: String) {
-        isApprovedRecently = true
+    private func dispatchDecision(action: String, promptId: String?) {
         let key   = action.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let agent = activeAgent ?? .antigravity
+
+        Task { [weak self] in
+            guard let self = self else { return }
+            // Re-verify the dialog is still on screen right before acting.
+            // A decision arriving after the dialog disappeared must never
+            // click stale coordinates or inject keys into another window.
+            guard await self.verifyPromptStillVisible(agent: agent) else {
+                self.emitDict(["type": "action_aborted", "agent": agent.rawValue, "reason": "prompt_no_longer_visible"])
+                return
+            }
+            self.performDispatch(key: key, agent: agent, promptId: promptId)
+        }
+    }
+
+    private func verifyPromptStillVisible(agent: SupportedAppAgent) async -> Bool {
+        do {
+            let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+            guard let display = content.displays.first else { return false }
+            let filter = SCContentFilter(display: display, excludingWindows: [])
+            let config = SCStreamConfiguration()
+            config.width = display.width
+            config.height = display.height
+            config.showsCursor = false
+            let img = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config)
+            let req = VNRecognizeTextRequest()
+            req.recognitionLevel = .accurate
+            req.usesLanguageCorrection = false
+            req.recognitionLanguages = ["en-US"]
+            try? VNImageRequestHandler(cgImage: img, options: [:]).perform([req])
+            let lines = (req.results ?? [])
+                .compactMap { $0.topCandidates(1).first?.string }
+            let lower = lines.joined(separator: "\n").lowercased()
+            guard let detected = detectStrictAgent(lower: lower) else { return false }
+            guard detected == agent else { return false }
+            return isApprovalContext(agent: agent, lower: lower)
+        } catch {
+            return false
+        }
+    }
+
+    private func performDispatch(key: String, agent: SupportedAppAgent, promptId: String?) {
+        // Ignore decisions for prompts that were superseded by a newer dialog.
+        if let promptId = promptId, !promptId.isEmpty, promptId != activePromptId {
+            emitDict(["type": "action_aborted", "agent": agent.rawValue, "reason": "stale_prompt_id"])
+            return
+        }
 
         // 1. Bring target App to the foreground
         activateApp(for: agent)

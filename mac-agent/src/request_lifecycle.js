@@ -1,57 +1,86 @@
 const fs = require('fs');
 const path = require('path');
 
+/**
+ * Builds a stable semantic signature for a request. Two detections of the
+ * same on-screen dialog share a signature even when their ids or raw screen
+ * text differ, which lets the lifecycle collapse duplicate cards.
+ */
+function signatureOf(request) {
+  const options = (request.optionsList || []).map((o) => String(o.key)).sort().join(',');
+  const command = String(request.command || '').trim().toLowerCase();
+  return `${request.agent || 'AI Agent'}|${command}|${options}`;
+}
+
+/**
+ * Tracks at most ONE active request per agent, matching the reality of a
+ * screen-based detector: a single dialog is visible per app at any moment.
+ *
+ * - Duplicate detections (same signature) are dropped.
+ * - A new dialog for an agent retires the previous one without dispatching
+ *   anything to the desktop app (the old dialog is already gone from screen).
+ * - Timeout clears the phone card only; the desktop prompt is left untouched.
+ */
 class RequestLifecycleManager {
-  constructor({ timeoutMs = 30000, perAgentQueueLimit = 20, onActivate, onResolve, eventLogPath }) {
+  constructor({ timeoutMs = 30000, onActivate, onResolve, eventLogPath }) {
     this.timeoutMs = timeoutMs;
-    this.perAgentQueueLimit = perAgentQueueLimit;
     this.onActivate = onActivate || (() => {});
     this.onResolve = onResolve || (() => {});
     this.eventLogPath = eventLogPath || path.join(__dirname, '../events.jsonl');
 
     this.activeById = new Map();
     this.activeByAgent = new Map();
-    this.queueByAgent = new Map();
   }
 
   enqueue(request) {
     const agent = request.agent || 'AI Agent';
-    const activeId = this.activeByAgent.get(agent);
-
+    const signature = signatureOf(request);
     this.logEvent(request.id, 'detected', { agent, risk: request.risk || 'medium' });
 
-    if (!activeId) {
-      this.activate(request);
-      return { status: 'activated' };
+    const activeId = this.activeByAgent.get(agent);
+    if (activeId) {
+      const active = this.activeById.get(activeId);
+      if (active) {
+        // Prefer AX detections over Vision OCR for the same dialog: AX press
+        // acts on the live element, which is safer than coordinate clicks.
+        if (active.request.isAxPrompt && request.isVisionPrompt) {
+          this.logEvent(request.id, 'duplicate_dropped', { agent, duplicateOf: activeId, reason: 'ax_priority' });
+          return { status: 'duplicate' };
+        }
+        if (active.signature === signature) {
+          this.logEvent(request.id, 'duplicate_dropped', { agent, duplicateOf: activeId, reason: 'same_signature' });
+          return { status: 'duplicate' };
+        }
+        // The screen now shows a new dialog for this agent. Retire the old
+        // request without dispatching: its coordinates/buttons are stale.
+        this.resolve(activeId, {
+          action: 'clear',
+          reason: 'superseded',
+          source: 'system',
+          dispatch: false,
+        });
+      }
     }
 
-    const queue = this.queueByAgent.get(agent) || [];
-    if (queue.length >= this.perAgentQueueLimit) {
-      this.logEvent(request.id, 'queue_overflow_rejected', { agent, reason: 'per_agent_queue_limit_reached' });
-      return { status: 'overflow' };
-    }
-
-    queue.push(request);
-    this.queueByAgent.set(agent, queue);
-    this.logEvent(request.id, 'enqueued', { agent, queueLength: queue.length });
-    return { status: 'enqueued', queueLength: queue.length };
+    this.activate(request, signature);
+    return { status: 'activated' };
   }
 
-  activate(request) {
+  activate(request, signature) {
     const agent = request.agent || 'AI Agent';
     const timer = setTimeout(() => {
       this.resolve(request.id, {
-        selectedOptionKey: this.defaultRejectKey(request),
-        action: 'reject',
+        action: 'clear',
         reason: 'timeout',
         source: 'system',
+        dispatch: false,
       });
     }, this.timeoutMs);
     if (timer.unref) {
       timer.unref();
     }
 
-    this.activeById.set(request.id, { request, timer, settled: false });
+    this.activeById.set(request.id, { request, signature, timer });
     this.activeByAgent.set(agent, request.id);
     this.logEvent(request.id, 'delivered', { agent });
     this.onActivate(request);
@@ -59,25 +88,29 @@ class RequestLifecycleManager {
 
   resolve(requestId, decision) {
     const state = this.activeById.get(requestId);
-    if (!state || state.settled) {
+    if (!state) {
       return { status: 'ignored' };
     }
 
-    state.settled = true;
     clearTimeout(state.timer);
     this.activeById.delete(requestId);
     this.activeByAgent.delete(state.request.agent || 'AI Agent');
 
     const resolved = {
       request: state.request,
-      selectedOptionKey: decision.selectedOptionKey,
-      action: decision.action,
+      selectedOptionKey: decision.selectedOptionKey || null,
+      action: decision.action || 'clear',
       reason: decision.reason || 'user_decision',
       source: decision.source || 'client',
+      dispatch: decision.dispatch !== false,
     };
 
     if (resolved.reason === 'timeout') {
-      this.logEvent(requestId, 'timeout_rejected', { agent: state.request.agent || 'AI Agent' });
+      this.logEvent(requestId, 'timeout_cleared', { agent: state.request.agent || 'AI Agent' });
+    } else if (resolved.reason === 'superseded') {
+      this.logEvent(requestId, 'superseded_cleared', { agent: state.request.agent || 'AI Agent' });
+    } else if (resolved.reason === 'cancelled') {
+      this.logEvent(requestId, 'cancelled', { agent: state.request.agent || 'AI Agent' });
     } else {
       this.logEvent(requestId, 'decided', {
         agent: state.request.agent || 'AI Agent',
@@ -88,23 +121,15 @@ class RequestLifecycleManager {
     }
 
     this.onResolve(resolved);
-    this.activateNext(state.request.agent || 'AI Agent');
     return { status: 'resolved', decision: resolved };
-  }
-
-  activateNext(agent) {
-    const queue = this.queueByAgent.get(agent) || [];
-    if (queue.length === 0) {
-      return;
-    }
-
-    const next = queue.shift();
-    this.queueByAgent.set(agent, queue);
-    this.activate(next);
   }
 
   getActiveRequest(requestId) {
     return this.activeById.get(requestId)?.request || null;
+  }
+
+  listActiveRequests() {
+    return Array.from(this.activeById.values()).map((s) => s.request);
   }
 
   defaultRejectKey(request) {
@@ -144,7 +169,6 @@ class RequestLifecycleManager {
     }
     this.activeById.clear();
     this.activeByAgent.clear();
-    this.queueByAgent.clear();
   }
 
   logEvent(requestId, type, data = {}) {
@@ -163,3 +187,4 @@ class RequestLifecycleManager {
 }
 
 module.exports = RequestLifecycleManager;
+module.exports.signatureOf = signatureOf;

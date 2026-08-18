@@ -7,9 +7,10 @@ const fs = require('fs');
  *
  * Responsibilities:
  * - Spawn the native vision_observer binary
- * - Forward vision_prompt_detected events to the WebSocket server (deduplicated)
+ * - Forward vision_prompt_detected events to the WebSocket server
+ *   (the server lifecycle collapses duplicates by semantic signature)
  * - Route mobile decisions back to vision_observer via stdin
- * - Track ONE active prompt at a time — ignore new detections while one is pending
+ * - Track the latest prompt id reported by the observer for decision routing
  */
 class VisionBridge {
   constructor(server) {
@@ -17,7 +18,6 @@ class VisionBridge {
     this.child = null;
     this.binaryPath = path.join(__dirname, '../bin/vision_observer');
     this.activePromptId = null;
-    this.pendingPromptIds = new Set(); // IDs dispatched but not yet resolved
 
     if (this.server) {
       // Hook into server decisions
@@ -53,12 +53,12 @@ class VisionBridge {
     });
 
     this.child.on('exit', (code) => {
-      console.log(`[Vision Bridge] vision_observer exited (code=${code}). Restarting in 3s…`);
+      console.log(`[Vision Bridge] vision_observer exited (code=${code}). Restarting in 3s...`);
       this.activePromptId = null;
       setTimeout(() => this.start(), 3000);
     });
 
-    console.log('👁️  Universal Apple Vision OCR Screen Observer started.');
+    console.log('Universal Apple Vision OCR Screen Observer started.');
   }
 
   handleVisionMessage(msg) {
@@ -68,15 +68,6 @@ class VisionBridge {
         break;
 
       case 'vision_prompt_detected': {
-        // If there is already an active (unresolved) prompt, skip this new detection.
-        // This prevents the iOS app from being flooded with duplicate cards.
-        if (this.activePromptId && this.pendingPromptIds.has(this.activePromptId)) {
-          return;
-        }
-
-        this.activePromptId = msg.id;
-        this.pendingPromptIds.add(msg.id);
-
         const request = {
           id: msg.id,
           agent: msg.agent || 'AI Agent',
@@ -94,28 +85,32 @@ class VisionBridge {
           isVisionPrompt: true,
         };
 
-        console.log(`\n👁️  [Vision OCR] Prompt detected on screen:`);
+        console.log(`\n[Vision OCR] Prompt detected on screen:`);
         console.log(`    Agent:   ${request.agent}`);
         console.log(`    Command: ${request.command}`);
         console.log(`    Risk:    ${request.risk.toUpperCase()}`);
         console.log(`    Options: ${request.optionsList.map(o => o.key).join(', ')}`);
 
         if (this.server) {
-          this.server.sendRequest(request);
+          const status = this.server.sendRequest(request);
+          if (status === 'activated') {
+            this.activePromptId = msg.id;
+          }
         }
         break;
       }
 
       case 'prompt_cleared':
         console.log('[Vision OCR] Screen prompt cleared (agent resumed).');
-        if (this.activePromptId) {
-          this.pendingPromptIds.delete(this.activePromptId);
-          this.activePromptId = null;
-        }
+        this.activePromptId = null;
+        break;
+
+      case 'action_aborted':
+        console.log(`[Vision OCR] Dispatch aborted: ${msg.reason || 'unknown reason'} (prompt no longer on screen).`);
         break;
 
       case 'keystroke_dispatched':
-        console.log(`✨ [Keystroke] '${msg.sent || msg.action}' sent to Mac terminal.`);
+        console.log(`[Keystroke] '${msg.sent || msg.action}' sent to Mac terminal.`);
         break;
 
       default:
@@ -130,19 +125,11 @@ class VisionBridge {
     // Resolve the option key: prefer selectedOptionKey from meta, fall back to action
     const selectedKey = (meta && meta.selectedOptionKey) ? meta.selectedOptionKey : action;
 
-    console.log(`[Vision Bridge] Mobile decision '${selectedKey}' → dispatching keystroke…`);
+    console.log(`[Vision Bridge] Mobile decision '${selectedKey}' → dispatching to screen...`);
 
     const cmdPayload = JSON.stringify({ action: selectedKey, promptId: requestId });
     this.child.stdin.write(`${cmdPayload}\n`);
-
-    // Mark this prompt as resolved
-    this.pendingPromptIds.delete(requestId);
     this.activePromptId = null;
-
-    // Tell the iOS app the request is done
-    if (this.server) {
-      this.server.broadcastCleared(requestId);
-    }
   }
 
   stop() {

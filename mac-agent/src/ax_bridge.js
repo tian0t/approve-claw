@@ -9,6 +9,7 @@ class AxBridge {
     this.child = null;
     this.binaryPath = path.join(__dirname, '../bin/ax_observer');
     this.activePromptId = null;
+    this.activeRequest = null;
 
     // Attach decision listener to WebSocket server
     if (this.server) {
@@ -67,8 +68,7 @@ class AxBridge {
     } else if (msg.type === 'ax_permission_required') {
       console.warn('⚠️ [AX Bridge] Accessibility permission required:', msg.message);
     } else if (msg.type === 'ax_prompt_detected') {
-      console.log(`\n🔍 [AX Observer] Detected Screen Prompt in [${msg.appName}]: ${msg.command}`);
-      this.activePromptId = msg.id;
+      console.log(`\n[AX Observer] Detected Screen Prompt in [${msg.appName}]: ${msg.command}`);
 
       const request = {
         id: msg.id,
@@ -92,8 +92,12 @@ class AxBridge {
       if (this.detector) {
         this.detector.pendingRequest = request;
       }
+      this.activeRequest = request;
       if (this.server) {
-        this.server.sendRequest(request);
+        const status = this.server.sendRequest(request);
+        if (status === 'activated') {
+          this.activePromptId = msg.id;
+        }
       }
     } else if (msg.type === 'ax_action_result') {
       console.log(`✨ [AX Observer] Element Press Action: ${msg.result} (Button ${msg.buttonIndex})`);
@@ -102,28 +106,35 @@ class AxBridge {
 
   handleDecision(requestId, decisionKey) {
     if (!this.child || !this.child.stdin || !this.child.stdin.writable) return;
+    if (requestId !== this.activePromptId) return;
 
-    if (this.activePromptId && requestId === this.activePromptId) {
-      let buttonIdx = 1;
-      if (decisionKey === 'reject' || decisionKey === '5') {
-        buttonIdx = 2;
-      } else if (!isNaN(Number(decisionKey))) {
-        buttonIdx = Number(decisionKey);
-      }
-
-      console.log(`[AX Bridge] Forwarding remote decision '${decisionKey}' to AXUIElement button #${buttonIdx}...`);
-      const cmdPayload = JSON.stringify({
-        action: 'press',
-        promptId: requestId,
-        buttonIndex: buttonIdx,
-      });
-
-      this.child.stdin.write(`${cmdPayload}\n`);
-      if (this.server) {
-        this.server.broadcastCleared(requestId);
-      }
-      this.activePromptId = null;
+    const options = (this.activeRequest && this.activeRequest.optionsList) || [];
+    let buttonIdx;
+    if (decisionKey === 'approve') {
+      const primary = options.find((o) => o.isPrimary);
+      buttonIdx = primary ? Number(primary.key) : 1;
+    } else if (decisionKey === 'reject') {
+      const destructive = options.find((o) => o.isDestructive);
+      buttonIdx = destructive ? Number(destructive.key) : (options.length > 0 ? Number(options[options.length - 1].key) : 2);
+    } else {
+      buttonIdx = Number(decisionKey);
     }
+
+    if (!Number.isInteger(buttonIdx) || buttonIdx < 1) {
+      console.error(`[AX Bridge] Cannot resolve button index for decision '${decisionKey}'.`);
+      return;
+    }
+
+    console.log(`[AX Bridge] Forwarding remote decision '${decisionKey}' to AXUIElement button #${buttonIdx}...`);
+    const cmdPayload = JSON.stringify({
+      action: 'press',
+      promptId: requestId,
+      buttonIndex: buttonIdx,
+    });
+
+    this.child.stdin.write(`${cmdPayload}\n`);
+    this.activePromptId = null;
+    this.activeRequest = null;
   }
 
   stop() {

@@ -48,7 +48,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		045900D89A8B18846EAD0189 /* WatchApprove.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = WatchApprove.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		045900D89A8B18846EAD0189 /* WatchApprove.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = WatchApprove.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		19999F859B481B6144BA0B5E /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		1DBF3350BFBE5EC791E312C5 /* WatchApproveWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchApproveWatchApp.swift; sourceTree = "<group>"; };
 		27AB53A3F34D5FC667DA769F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -262,7 +262,6 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = HA6MF9H3F5;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ios/WatchApprove/Info.plist;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -282,7 +281,6 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = HA6MF9H3F5;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ios/WatchApproveWatch/Info.plist;
 				PRODUCT_BUNDLE_IDENTIFIER = com.yu.clawapp.WatchApprove.watchkitapp;
@@ -360,7 +358,6 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = HA6MF9H3F5;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ios/WatchApprove/Info.plist;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -434,7 +431,6 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = HA6MF9H3F5;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ios/WatchApproveWatch/Info.plist;
 				PRODUCT_BUNDLE_IDENTIFIER = com.yu.clawapp.WatchApprove.watchkitapp;

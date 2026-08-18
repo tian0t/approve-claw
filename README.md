@@ -17,7 +17,7 @@
 
 *When your desktop AI agent requests execution permission on screen, review and approve it directly from your iPhone or Apple Watch.*
 
-> **Supported Desktop App Agents**: Antigravity IDE &nbsp;|&nbsp; OpenAI Codex &nbsp;|&nbsp; Claude Code
+> **Supported Desktop App Agents**: Antigravity IDE &nbsp;|&nbsp; OpenAI Codex &nbsp;|&nbsp; Claude Code `[WIP]`
 
 [Overview](#overview) • [Workflow](#complete-11-closed-loop-workflow) • [Supported Agents](#supported-desktop-app-agents) • [Architecture](#system-architecture) • [Installation](#installation)
 
@@ -80,7 +80,10 @@ All supported agents are macOS desktop applications:
 | :--- | :--- | :--- | :--- |
 | **Antigravity IDE** | Implementation plan / execution modals (`Proceed`, `Allow`, `Planning Mode`, `Execute`) | `Proceed & Allow`<br>`Cancel & Deny` | Focuses Antigravity window -> Clicks button coordinates (Enter/Esc fallback) |
 | **OpenAI Codex** | Web & Desktop approval cards (`Approve`, `Reject`, `Ask for approval`) | `Approve`<br>`Reject` | Focuses Codex window -> Clicks `Approve`/`Reject` coordinates |
-| **Claude Code** | Interactive selection menus (`1. Yes, allow once`, `2. Yes, allow...`, `3. No`) | `1. Yes, allow once`<br>`2. Yes, allow for this session`<br>`3. No` | Focuses Claude window -> Clicks option / Injects numeric key + Return |
+| **Claude Code** `[WIP]` | Interactive selection menus (`1. Yes, allow once`, `2. Yes, allow...`, `3. No`) | `1. Yes, allow once`<br>`2. Yes, allow for this session`<br>`3. No` | Focuses Claude window -> Clicks option / Injects numeric key + Return |
+
+> [!NOTE]
+> **Primary focus**: OpenAI Codex (ChatGPT desktop app) and Antigravity IDE are the actively developed agents. **Claude Code support is WIP / experimental** and not the current development priority.
 
 ---
 
@@ -134,7 +137,7 @@ All supported agents are macOS desktop applications:
 │   │                       approve-claw Node.js Daemon                             │   │
 │   │  - vision_bridge.js (Subprocess Supervisor & Event Deduplication)             │   │
 │   │  - request_lifecycle.js (State Machine, Per-Agent Queue, Timeout Manager)    │   │
-│   │  - websocket.js (Local Encrypted WebSocket Gateway, Port 8080)                │   │
+│   │  - websocket.js (Local Token-Authenticated WebSocket Gateway, Port 8080)     │   │
 │   └───────────────────────────────────────┬───────────────────────────────────────┘   │
 └───────────────────────────────────────────┼───────────────────────────────────────────┘
                                             │ Local Wi-Fi WebSocket (ws://)
@@ -235,7 +238,7 @@ xcodegen generate
 ## Security & Privacy
 
 - **100% Offline & Local**: All OCR processing runs locally via Apple Neural Engine / Vision framework. All WebSocket communication remains strictly within your local Wi-Fi network.
-- **PIN-Protected Handshake**: Pairing requires a 6-digit one-time code generating persistent cryptographic session tokens.
+- **PIN-Protected Handshake**: Pairing requires a 6-digit one-time code and issues a persistent random access token stored with 0600 permissions.
 - **No Cloud Dependencies**: Zero external API keys or cloud relay required.
 
 ---

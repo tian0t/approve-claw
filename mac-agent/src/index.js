@@ -3,6 +3,8 @@
 const os = require('os');
 const WatchWebSocketServer = require('./websocket');
 const VisionBridge = require('./vision_bridge');
+const AxBridge = require('./ax_bridge');
+const ConfirmationDetector = require('./detector');
 
 function getLanIps() {
   const ifaces = os.networkInterfaces();
@@ -47,19 +49,25 @@ function main() {
   console.log('=============================================================');
 
   // Start WebSocket Gateway
-  const server = new WatchWebSocketServer(port, null, null, host);
+  const detector = new ConfirmationDetector();
+  const server = new WatchWebSocketServer(port, null, detector, host);
   server.start();
 
-  // Start Universal Screen Vision OCR Engine
+  // Start Universal Screen Vision OCR Engine (fallback detector + click dispatcher)
   const visionBridge = new VisionBridge(server);
   visionBridge.start();
 
-  console.log('\n📱 iPhone & Apple Watch are ready to connect.');
+  // Start Native AX (Accessibility) Observer (primary detector + semantic button press)
+  const axBridge = new AxBridge(server, detector);
+  axBridge.start();
+
+  console.log('\niPhone & Apple Watch are ready to connect.');
   console.log('Leave your AI agent running on screen — we will notify your watch on any prompt!\n');
 
   const shutdown = () => {
     console.log('\nStopping approve-claw daemon...');
     visionBridge.stop();
+    axBridge.stop();
     server.close();
     process.exit(0);
   };

@@ -41,9 +41,9 @@ test('detects Codex CLI "Allow execution" prompts', () => {
   assert.equal(r.isCodexPrompt, true);
 });
 
-test('detects Kun (Kimi) Chinese prompts', () => {
+test('detects Kun (Kimi) English prompts', () => {
   const d = new ConfirmationDetector();
-  d.feed('\n[Kun Agent] 允许运行以下命令吗？\n  python train.py --epochs 100\n允许运行? (y/n) ');
+  d.feed('\n[Kun Agent] Allow the following command to run?\n  python train.py --epochs 100\nAllow? (y/n) ');
   const r = d.detect('Kun (Kimi)');
   assert.ok(r);
   assert.equal(r.agent, 'Kun (Kimi)');

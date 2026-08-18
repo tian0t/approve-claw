@@ -1,8 +1,8 @@
 const { createRequestId } = require('./request_id');
 
 // Matches choice markers for Codex, Claude Code, Kun (Kimi), and Antigravity:
-// e.g., "Allow? (y/n) ", "Proceed? (Y/n) >", "[y/n]:", "(是/否)", "[y/n/always]", "Execute? (y/N)"
-const PROMPT_REGEX = /(?:\([yY]\/[nN](?:\/[aA])?\)|\[[yY]\/[nN](?:\/[aA])?\]|\(是\/否\)|\[是\/否\]|\[确认\/取消\])\s*[>›:#]?\s*$/;
+// e.g., "Allow? (y/n) ", "Proceed? (Y/n) >", "[y/n]:", "[y/n/always]", "Execute? (y/N)"
+const PROMPT_REGEX = /(?:\([yY]\/[nN](?:\/[aA])?\)|\[[yY]\/[nN](?:\/[aA])?\])\s*[>›:#]?\s*$/;
 
 // Matches Antigravity IDE & AGY Tool Sandbox Permission Prompts:
 const ANTIGRAVITY_IDE_PROMPT_REGEX = /(?:Confirm the command is safe to run|1\s*Yes,\s*allow|Yes,\s*and\s*always\s*allow|Allow\s+[\s\S]+?\?)/i;
@@ -168,7 +168,7 @@ class ConfirmationDetector {
 
       for (let i = lines.length - 1; i >= 0; i--) {
         const line = lines[i];
-        if (/\b(wants to run|wants to execute|wants to run the following command|command:|允许运行|请求执行命令)/i.test(line)) {
+        if (/\b(wants to run|wants to execute|wants to run the following command|command:)/i.test(line)) {
           if (i + 1 < lines.length) {
             command = this.normalizeCommand(lines[i + 1]);
             description = line;
@@ -181,8 +181,8 @@ class ConfirmationDetector {
         const line = lines[i];
         if (this.isPromptLine(line)) {
           const rest = line
-            .replace(/(?:allow|approve|continue|confirm|proceed|try anyway|允许|执行|确认|继续)\?\s*(?:\([yY]\/[nN]\)|\[[yY]\/[nN]\]|\(是\/否\)|\[是\/否\])?[>›:#]?\s*$/i, '')
-            .replace(/(?:\([yY]\/[nN]\)|\[[yY]\/[nN]\]|\(是\/否\)|\[是\/否\])\s*[>›:#]?\s*$/, '')
+            .replace(/(?:allow|approve|continue|confirm|proceed|try anyway)\?\s*(?:\([yY]\/[nN]\)|\[[yY]\/[nN]\])?[>›:#]?\s*$/i, '')
+            .replace(/(?:\([yY]\/[nN]\)|\[[yY]\/[nN]\])\s*[>›:#]?\s*$/, '')
             .trim();
           if (rest && !/^(do|are|would|should|can|may|is|did|could|does)\s/i.test(rest) && !/\?$/.test(rest)) {
             command = this.normalizeCommand(rest);
@@ -205,7 +205,7 @@ class ConfirmationDetector {
   }
 
   isPromptLine(line) {
-    return /(?:\([yY]\/[nN]\)|\[[yY]\/[nN]\]|\(是\/否\)|\[是\/否\]|allow\?|approve\?|continue\?|confirm\?|proceed\?|try anyway\?|允许\?|确认\?|执行\?|Yes,\s*allow)/i.test(line);
+    return /(?:\([yY]\/[nN]\)|\[[yY]\/[nN]\]|allow\?|approve\?|continue\?|confirm\?|proceed\?|try anyway\?|Yes,\s*allow)/i.test(line);
   }
 
   normalizeCommand(line) {
