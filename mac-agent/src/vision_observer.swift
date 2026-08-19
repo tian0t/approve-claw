@@ -181,7 +181,16 @@ class VisionObserverEngine {
             return
         }
 
-        // 2. Verify an approval card / modal context exists for this app
+        // 2. Guard: the detected agent's app must be the frontmost application.
+        //    This eliminates false positives from background Chrome tabs,
+        //    AI documentation pages, or any other off-screen content that
+        //    happens to contain agent keywords.
+        guard isFrontmostApp(for: agent) else {
+            handleClear()
+            return
+        }
+
+        // 3. Verify an approval card / modal context exists for this app
         guard isApprovalContext(agent: agent, lower: lower) else {
             handleClear()
             return
@@ -306,6 +315,19 @@ class VisionObserverEngine {
                    lower.contains("waiting for approval") ||
                    lower.contains("needs approval")
         }
+    }
+
+    // MARK: - Frontmost App Guard
+
+    /// Returns true only when the running application that is currently
+    /// in the foreground matches one of the known bundle IDs for `agent`.
+    /// Claude Code also accepts any terminal emulator since it runs inside
+    /// a terminal session (Terminal, iTerm2, Warp, Kitty, WezTerm, VS Code).
+    private func isFrontmostApp(for agent: SupportedAppAgent) -> Bool {
+        guard let frontmost = NSWorkspace.shared.frontmostApplication,
+              let bundleID  = frontmost.bundleIdentifier else { return false }
+        let allowed = agentBundleIDs[agent] ?? []
+        return allowed.contains(bundleID)
     }
 
     // MARK: - Dynamic Button & Option Coordinate Extraction

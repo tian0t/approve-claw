@@ -22,7 +22,7 @@ function signatureOf(request) {
  * - Timeout clears the phone card only; the desktop prompt is left untouched.
  */
 class RequestLifecycleManager {
-  constructor({ timeoutMs = 30000, onActivate, onResolve, eventLogPath }) {
+  constructor({ timeoutMs = 300000, onActivate, onResolve, eventLogPath }) {
     this.timeoutMs = timeoutMs;
     this.onActivate = onActivate || (() => {});
     this.onResolve = onResolve || (() => {});
