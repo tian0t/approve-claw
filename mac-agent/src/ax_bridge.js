@@ -3,13 +3,15 @@ const path = require('path');
 const fs = require('fs');
 
 class AxBridge {
-  constructor(server, detector) {
+  constructor(server, detector, fallbackBridge = null) {
     this.server = server;
     this.detector = detector;
+    this.fallbackBridge = fallbackBridge;
     this.child = null;
     this.binaryPath = path.join(__dirname, '../bin/ax_observer');
     this.activePromptId = null;
     this.activeRequest = null;
+    this.pendingDispatches = new Map();
 
     // Attach decision listener to WebSocket server
     if (this.server) {
@@ -101,6 +103,18 @@ class AxBridge {
       }
     } else if (msg.type === 'ax_action_result') {
       console.log(`✨ [AX Observer] Element Press Action: ${msg.result} (Button ${msg.buttonIndex})`);
+      const first = this.pendingDispatches.entries().next().value;
+      if (!first) return;
+      const [id, meta] = first;
+      this.pendingDispatches.delete(id);
+      if (msg.result !== 'success' && this.fallbackBridge) {
+        console.warn(`[AX Bridge] AX press failed; falling back to Vision coordinates for ${id}.`);
+        this.fallbackBridge.dispatchFallback(id, meta.action, meta.selectedOptionKey);
+        return;
+      }
+      if (this.server) {
+        this.server.broadcast({ type: 'confirmation_completed', id, action: meta.action, selectedOptionKey: meta.selectedOptionKey, reason: null });
+      }
     }
   }
 
@@ -132,6 +146,7 @@ class AxBridge {
       buttonIndex: buttonIdx,
     });
 
+    this.pendingDispatches.set(requestId, { action: decisionKey, selectedOptionKey: decisionKey });
     this.child.stdin.write(`${cmdPayload}\n`);
     this.activePromptId = null;
     this.activeRequest = null;

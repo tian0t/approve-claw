@@ -58,7 +58,7 @@ function main() {
   visionBridge.start();
 
   // Start Native AX (Accessibility) Observer (primary detector + semantic button press)
-  const axBridge = new AxBridge(server, detector);
+  const axBridge = new AxBridge(server, detector, visionBridge);
   axBridge.start();
 
   console.log('\niPhone & Apple Watch are ready to connect.');

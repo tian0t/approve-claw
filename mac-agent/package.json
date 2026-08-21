@@ -30,8 +30,11 @@
     "watchapprove": "./src/index.js"
   },
   "scripts": {
+    "prestart": "npm run build:native",
     "start": "node src/index.js",
-    "build:vision": "swiftc -O src/vision_observer.swift -o bin/vision_observer",
+    "build:vision": "mkdir -p bin && swiftc -O src/vision_observer.swift -o bin/vision_observer",
+    "build:ax": "mkdir -p bin && swiftc -O src/ax_observer.swift -o bin/ax_observer",
+    "build:native": "npm run build:vision && npm run build:ax",
     "test": "node --test test/*.test.js"
   },
   "dependencies": {

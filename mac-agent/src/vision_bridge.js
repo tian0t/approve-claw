@@ -18,6 +18,7 @@ class VisionBridge {
     this.child = null;
     this.binaryPath = path.join(__dirname, '../bin/vision_observer');
     this.activePromptId = null;
+    this.pendingDispatches = new Map();
 
     if (this.server) {
       // Hook into server decisions
@@ -107,6 +108,12 @@ class VisionBridge {
 
       case 'action_aborted':
         console.log(`[Vision OCR] Dispatch aborted: ${msg.reason || 'unknown reason'} (prompt no longer on screen).`);
+        this.completePendingDispatch(msg.reason || 'action_aborted', true);
+        break;
+
+      case 'action_dispatched':
+        console.log(`[Vision OCR] Desktop action dispatched via ${msg.method || 'vision'}.`);
+        this.completePendingDispatch(msg.method || 'vision_coordinate_click', false);
         break;
 
       case 'keystroke_dispatched':
@@ -128,8 +135,37 @@ class VisionBridge {
     console.log(`[Vision Bridge] Mobile decision '${selectedKey}' → dispatching to screen...`);
 
     const cmdPayload = JSON.stringify({ action: selectedKey, promptId: requestId });
+    this.pendingDispatches.set(requestId, { action, selectedOptionKey: selectedKey });
     this.child.stdin.write(`${cmdPayload}\n`);
     this.activePromptId = null;
+  }
+
+  // AX is the preferred path. If the live AX element cannot be pressed,
+  // reuse the latest Vision frame as a coordinate-click fallback.
+  dispatchFallback(requestId, action, selectedOptionKey) {
+    if (!this.child?.stdin?.writable) return;
+    const selectedKey = selectedOptionKey || action;
+    console.log(`[Vision Bridge] AX fallback '${selectedKey}' → dispatching captured screen coordinate...`);
+    this.pendingDispatches.set(requestId, { action, selectedOptionKey: selectedKey });
+    this.child.stdin.write(`${JSON.stringify({ action: selectedKey, promptId: null })}\n`);
+  }
+
+  completePendingDispatch(reason, failed) {
+    const first = this.pendingDispatches.entries().next().value;
+    if (!first || !this.server) return;
+    const [id, meta] = first;
+    this.pendingDispatches.delete(id);
+    if (failed) {
+      this.server.broadcast({ type: 'confirmation_cancelled', id, reason });
+    } else {
+      this.server.broadcast({
+        type: 'confirmation_completed',
+        id,
+        action: meta.action,
+        selectedOptionKey: meta.selectedOptionKey,
+        reason: null,
+      });
+    }
   }
 
   stop() {

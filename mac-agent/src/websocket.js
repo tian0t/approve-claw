@@ -12,7 +12,8 @@ const http = require('http');
 const { encryptBox } = require('./crypto');
 const HEARTBEAT_INTERVAL_MS = 30000;
 const MAX_AUTH_ATTEMPTS = 3;
-const REQUEST_TIMEOUT_MS = Number(process.env.WATCHAPPROVE_REQUEST_TIMEOUT_MS || 30000);
+// Long enough to approve from a watch; override for tests if needed.
+const REQUEST_TIMEOUT_MS = Number(process.env.WATCHAPPROVE_REQUEST_TIMEOUT_MS || 300000);
 
 function getLanIps() {
   const ifaces = os.networkInterfaces();
@@ -62,15 +63,15 @@ class WatchWebSocketServer {
         }
         this.completedRequestIds.add(request.id);
         if (dispatch) {
-          // Real user decision: route it to the owning engine and confirm on devices.
+          // Real user decision: route it to the owning engine. Vision/AX
+          // engines confirm completion only after the desktop action really
+          // happens; synthetic requests keep the immediate test behaviour.
           this.onDecision(request.id, action, { selectedOptionKey, reason, source, request });
-          this.broadcast({
-            type: 'confirmation_completed',
-            id: request.id,
-            action,
-            selectedOptionKey,
-            reason,
-          });
+          if (request.isVisionPrompt || request.isAxPrompt) {
+            this.broadcast({ type: 'confirmation_dispatching', id: request.id, action, selectedOptionKey });
+          } else {
+            this.broadcast({ type: 'confirmation_completed', id: request.id, action, selectedOptionKey, reason });
+          }
         } else {
           // Clear-only (timeout/superseded/cancelled): dismiss the card on
           // devices without dispatching anything to the desktop app.
@@ -223,8 +224,16 @@ class WatchWebSocketServer {
             }
 
             const resolvedOptionKey = selectedOptionKey || this.lifecycle.mapLegacyAction(request, action);
+            const validOption = (request.optionsList || []).some(
+              (option) => String(option.key) === String(resolvedOptionKey)
+            ) || resolvedOptionKey === 'approve' || resolvedOptionKey === 'reject';
+            if (!validOption) {
+              ws.send(JSON.stringify({ type: 'error', message: 'Unknown option for this request.' }));
+              return;
+            }
             const resolvedAction = this.optionKeyToAction(request, resolvedOptionKey, action);
             console.log(`Received decision from Watch/iPhone for request [${id}]: \x1b[32m${resolvedOptionKey}\x1b[0m`);
+            ws.send(JSON.stringify({ type: 'decision_received', id, selectedOptionKey: resolvedOptionKey }));
             this.lifecycle.resolve(id, {
               selectedOptionKey: resolvedOptionKey,
               action: resolvedAction,

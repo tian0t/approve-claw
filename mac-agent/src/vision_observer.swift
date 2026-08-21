@@ -74,10 +74,6 @@ private let agentBundleIDs: [SupportedAppAgent: [String]] = [
     .codexApp: [
         "com.openai.chat",
         "com.openai.codex",
-        "com.google.Chrome",
-        "company.thebrowser.Browser",
-        "com.apple.Safari",
-        "org.mozilla.firefox",
     ],
     .claudeCode: [
         "com.anthropic.claude",
@@ -106,6 +102,10 @@ class VisionObserverEngine {
     private var captureWidth: Int = 1920
     private var captureHeight: Int = 1080
     private var currentClickTargets: [ClickTarget] = []
+    // Vision captures the display, but OCR must be scoped to the frontmost
+    // app window. Otherwise text from the iPhone/Watch simulators or a
+    // background browser tab can be mistaken for a Codex approval card.
+    private var frontmostWindowNormalizedRect: CGRect?
 
     func start() {
         var scale: CGFloat = 1.0
@@ -144,6 +144,7 @@ class VisionObserverEngine {
             guard let display = content.displays.first else { return }
             captureWidth  = display.width
             captureHeight = display.height
+            frontmostWindowNormalizedRect = normalizedFrontmostWindowRect()
 
             let filter = SCContentFilter(display: display, excludingWindows: [])
             let config  = SCStreamConfiguration()
@@ -171,7 +172,28 @@ class VisionObserverEngine {
     // MARK: - OCR Text Analysis & 1:1 Dynamic Option Mapping
 
     private func analyzeObservations(_ observations: [VNRecognizedTextObservation]) {
-        let lines = observations.compactMap { $0.topCandidates(1).first?.string }
+        let scopedObservations: [VNRecognizedTextObservation]
+        if let windowRect = frontmostWindowNormalizedRect {
+            scopedObservations = observations.filter { observation in
+                let box = observation.boundingBox
+                let topLeftBox = CGRect(
+                    x: box.minX,
+                    y: 1.0 - box.maxY,
+                    width: box.width,
+                    height: box.height
+                )
+                return topLeftBox.intersects(windowRect)
+            }
+        } else {
+            scopedObservations = observations
+        }
+
+        guard !scopedObservations.isEmpty else {
+            handleClear()
+            return
+        }
+
+        let lines = scopedObservations.compactMap { $0.topCandidates(1).first?.string }
         let full  = lines.joined(separator: "\n")
         let lower = full.lowercased()
 
@@ -204,7 +226,7 @@ class VisionObserverEngine {
         lastScreenHash = hash
 
         // 4. Extract ALL clickable button and numbered option coordinates from screen
-        currentClickTargets = extractClickTargets(from: observations, agent: agent, lines: lines)
+        currentClickTargets = extractClickTargets(from: scopedObservations, agent: agent, lines: lines)
 
         let command     = extractCommand(agent: agent, lines: lines, lower: lower)
         let risk        = evaluateRisk(command: command)
@@ -214,7 +236,11 @@ class VisionObserverEngine {
         //    on screen, even if minor rendering changes alter the raw screen
         //    hash. This prevents duplicate cards and queue flooding.
         let signature = promptSignature(agent: agent, command: command, optionsList: optionsList)
-        if activePrompt != nil && signature == lastPromptSignature { return }
+        // Keep one request ID for the visible approval card. OCR text can
+        // fluctuate by one or two characters between frames; replacing the
+        // request in that case would make a phone/watch tap arrive with a
+        // stale ID and skip the saved coordinate.
+        if activePrompt != nil && activeAgent == agent { return }
         lastPromptSignature = signature
 
         let newId = "vis_\(Int(Date().timeIntervalSince1970))_\(Int.random(in: 1000...9999))"
@@ -326,8 +352,42 @@ class VisionObserverEngine {
     private func isFrontmostApp(for agent: SupportedAppAgent) -> Bool {
         guard let frontmost = NSWorkspace.shared.frontmostApplication,
               let bundleID  = frontmost.bundleIdentifier else { return false }
-        let allowed = agentBundleIDs[agent] ?? []
+        var allowed = agentBundleIDs[agent] ?? []
+        // Browser-based Codex simulations are opt-in so simulator/browser
+        // text cannot masquerade as the real Codex desktop app.
+        if agent == .codexApp && ProcessInfo.processInfo.environment["APPROVE_CLAW_ALLOW_BROWSER_CODEX_SIM"] == "1" {
+            allowed += ["com.google.Chrome", "company.thebrowser.Browser", "com.apple.Safari", "org.mozilla.firefox"]
+        }
         return allowed.contains(bundleID)
+    }
+
+    /// Returns the frontmost app's window as a normalized top-left-origin
+    /// rectangle in display coordinates, matching Vision's normalized boxes.
+    private func normalizedFrontmostWindowRect() -> CGRect? {
+        guard let frontmost = NSWorkspace.shared.frontmostApplication,
+              let screen = NSScreen.main else { return nil }
+
+        let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+        guard let windowList = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
+            return nil
+        }
+
+        for info in windowList {
+            guard let ownerPID = info[kCGWindowOwnerPID as String] as? pid_t,
+                  ownerPID == frontmost.processIdentifier,
+                  let bounds = info[kCGWindowBounds as String] as? NSDictionary,
+                  let rect = CGRect(dictionaryRepresentation: bounds) else { continue }
+            guard rect.width > 200, rect.height > 100 else { continue }
+
+            let screenFrame = screen.frame
+            return CGRect(
+                x: (rect.minX - screenFrame.minX) / screenFrame.width,
+                y: (rect.minY - screenFrame.minY) / screenFrame.height,
+                width: rect.width / screenFrame.width,
+                height: rect.height / screenFrame.height
+            )
+        }
+        return nil
     }
 
     // MARK: - Dynamic Button & Option Coordinate Extraction
@@ -542,7 +602,12 @@ class VisionObserverEngine {
             // Re-verify the dialog is still on screen right before acting.
             // A decision arriving after the dialog disappeared must never
             // click stale coordinates or inject keys into another window.
-            guard await self.verifyPromptStillVisible(agent: agent) else {
+            let verified = await self.verifyPromptStillVisible(agent: agent)
+            // The current click targets came from the frame that created this
+            // request. A second capture can be unavailable in simulator or
+            // browser test windows, so use the captured coordinate when it is
+            // still present.
+            guard verified || !self.currentClickTargets.isEmpty else {
                 self.emitDict(["type": "action_aborted", "agent": agent.rawValue, "reason": "prompt_no_longer_visible"])
                 return
             }
@@ -597,7 +662,7 @@ class VisionObserverEngine {
 
             if let target = currentClickTargets.first(where: { $0.key == targetKey }) {
                 clickAt(target.screenPoint)
-                emitDict(["type": "action_dispatched", "agent": agent.rawValue, "method": "mouse_click", "sent": "click(\(Int(target.screenPoint.x)),\(Int(target.screenPoint.y)))"])
+                emitDict(["type": "action_dispatched", "agent": agent.rawValue, "method": "vision_coordinate_click", "sent": "click(\(Int(target.screenPoint.x)),\(Int(target.screenPoint.y)))"])
             } else {
                 if isApprove {
                     sendKeystroke("\r")
@@ -614,7 +679,7 @@ class VisionObserverEngine {
 
             if let target = currentClickTargets.first(where: { $0.key == targetKey }) {
                 clickAt(target.screenPoint)
-                emitDict(["type": "action_dispatched", "agent": agent.rawValue, "method": "mouse_click", "sent": "click(\(Int(target.screenPoint.x)),\(Int(target.screenPoint.y)))"])
+                emitDict(["type": "action_dispatched", "agent": agent.rawValue, "method": "vision_coordinate_click", "sent": "click(\(Int(target.screenPoint.x)),\(Int(target.screenPoint.y)))"])
             } else {
                 sendKeystroke("\t\r")
                 emitDict(["type": "action_dispatched", "agent": agent.rawValue, "method": "tab_enter_fallback"])
@@ -646,7 +711,10 @@ class VisionObserverEngine {
     // MARK: - App Activation via NSWorkspace
 
     private func activateApp(for agent: SupportedAppAgent) {
-        let bundleIDs = agentBundleIDs[agent] ?? []
+        var bundleIDs = agentBundleIDs[agent] ?? []
+        if agent == .codexApp && ProcessInfo.processInfo.environment["APPROVE_CLAW_ALLOW_BROWSER_CODEX_SIM"] == "1" {
+            bundleIDs += ["com.google.Chrome", "company.thebrowser.Browser", "com.apple.Safari", "org.mozilla.firefox"]
+        }
         let workspace = NSWorkspace.shared
         let runningApps = workspace.runningApplications
 
