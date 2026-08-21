@@ -102,8 +102,12 @@ class VisionBridge {
       }
 
       case 'prompt_cleared':
-        console.log('[Vision OCR] Screen prompt cleared (agent resumed).');
-        this.activePromptId = null;
+        // Keep the request id until the mobile decision is handled. OCR can
+        // briefly miss a card while the user is away or the app animates;
+        // clearing this id here would make a valid Watch tap silently drop.
+        // dispatchDecision performs the final live-visibility check and will
+        // cancel safely if the prompt is genuinely gone.
+        console.log('[Vision OCR] Screen prompt temporarily not visible; keeping the active request for remote approval.');
         break;
 
       case 'action_aborted':

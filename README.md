@@ -40,7 +40,7 @@ The normal Codex path is the native macOS ChatGPT/Codex application UI (`com.ope
 3. A tap on `Approve` or `Reject` is sent back to the Mac.
 4. The Mac tries `AXUIElementPerformAction` on the live button.
 5. If AX cannot press the button, Vision OCR reuses the latest frontmost-window coordinates and posts a mouse click.
-6. The mobile devices receive `confirmation_completed` only after the desktop action reports success.
+6. The mobile devices receive `confirmation_completed` after the Mac dispatcher reports that the desktop action was sent. The Codex card should still be visually checked during first-time setup.
 
 Browser pages are not part of the normal workflow. The browser harness is opt-in and exists only for local OCR testing with `APPROVE_CLAW_ALLOW_BROWSER_CODEX_SIM=1`.
 
@@ -123,6 +123,8 @@ All supported agents are macOS desktop applications:
 - `ax_observer.swift` traverses the frontmost native app's Accessibility tree.
 - Codex uses AX as the primary execution path instead of browser automation.
 - A failed AX press is handed to the Vision bridge automatically.
+
+> **Codex UI compatibility:** some Codex approval cards are rendered in a surface that does not expose `Approve` / `Reject` as AX buttons. In that case the runtime uses the latest Vision frame, then falls back to `Tab + Enter` when OCR cannot produce a reliable button coordinate. If the card remains visible, grant Accessibility and Screen Recording to the terminal that runs the daemon, restart it, and verify the focused Codex window before testing again.
 
 ### Intelligent GUI Click & Keystroke Dispatcher
 - Window focus management via `NSWorkspace` for instant app switching.
@@ -275,7 +277,7 @@ npm test
 node test/e2e_realistic_sim.js
 ```
 
-The end-to-end simulation verifies native Codex AX priority, Vision fallback routing, duplicate suppression, stale-request handling, and the mobile decision lifecycle.
+The end-to-end simulation verifies native Codex AX priority, Vision fallback routing, duplicate suppression, stale-request handling, and the mobile decision lifecycle. On a real Mac, confirm that the Codex card closes after the first approval because some app surfaces accept keyboard focus differently.
 
 ---
 
