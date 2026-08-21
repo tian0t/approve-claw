@@ -254,7 +254,14 @@ class AXObserverEngine {
             if cmd.action == "press", let idx = cmd.buttonIndex, let targetButton = buttonElementMap[idx] {
                 let res = AXUIElementPerformAction(targetButton, kAXPressAction as CFString)
                 let statusStr = (res == .success) ? "success" : "failed"
-                FileHandle.standardOutput.write("{\"type\":\"ax_action_result\",\"result\":\"\(statusStr)\",\"buttonIndex\":\(idx)}\n".data(using: .utf8)!)
+                let prompt = currentPromptId
+                if res == .success {
+                    buttonElementMap.removeAll()
+                    currentPromptId = ""
+                }
+                FileHandle.standardOutput.write("{\"type\":\"ax_action_result\",\"result\":\"\(statusStr)\",\"buttonIndex\":\(idx),\"promptId\":\"\(prompt)\"}\n".data(using: .utf8)!)
+            } else if cmd.action == "press" {
+                FileHandle.standardOutput.write("{\"type\":\"ax_action_result\",\"result\":\"failed\",\"buttonIndex\":\(cmd.buttonIndex ?? 0),\"promptId\":\"\(currentPromptId)\"}\n".data(using: .utf8)!)
             }
         }
     }

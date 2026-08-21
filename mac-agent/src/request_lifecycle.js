@@ -47,18 +47,26 @@ class RequestLifecycleManager {
           this.logEvent(request.id, 'duplicate_dropped', { agent, duplicateOf: activeId, reason: 'ax_priority' });
           return { status: 'duplicate' };
         }
-        if (active.signature === signature) {
+        if (active.request.isVisionPrompt && request.isAxPrompt) {
+          this.resolve(activeId, {
+            action: 'clear',
+            reason: 'superseded_by_ax',
+            source: 'system',
+            dispatch: false,
+          });
+        } else if (active.signature === signature) {
           this.logEvent(request.id, 'duplicate_dropped', { agent, duplicateOf: activeId, reason: 'same_signature' });
           return { status: 'duplicate' };
+        } else {
+          // The screen now shows a new dialog for this agent. Retire the old
+          // request without dispatching: its coordinates/buttons are stale.
+          this.resolve(activeId, {
+            action: 'clear',
+            reason: 'superseded',
+            source: 'system',
+            dispatch: false,
+          });
         }
-        // The screen now shows a new dialog for this agent. Retire the old
-        // request without dispatching: its coordinates/buttons are stale.
-        this.resolve(activeId, {
-          action: 'clear',
-          reason: 'superseded',
-          source: 'system',
-          dispatch: false,
-        });
       }
     }
 

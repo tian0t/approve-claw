@@ -87,7 +87,6 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
         retryCount = 0
         webSocketTask?.cancel(with: .normalClosure, reason: nil)
         connectionStatus = .disconnected
-        activeRequest = nil
     }
     
     func pair(pin: String) {
@@ -135,17 +134,8 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
 
         sendJson(payload)
 
-        // Add to history locally
-        if let request = activeRequest, request.id == requestId {
-            let histAction = historyLabel(for: action, request: request)
-            addHistory(requestId: requestId, agent: request.agent, command: request.command, action: histAction)
-
-            // Clear request
-            DispatchQueue.main.async {
-                self.activeRequest = nil
-                PhoneConnectivity.shared.syncActiveRequest(nil)
-            }
-        }
+        // Keep the request visible until the Mac bridge confirms that the
+        // desktop action was actually dispatched.
         return true
     }
     
@@ -176,8 +166,6 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
                     self.retryCount += 1
                     self.lastError = error.localizedDescription
                     self.connectionStatus = .disconnected
-                    self.activeRequest = nil
-                    PhoneConnectivity.shared.syncActiveRequest(nil)
                     self.scheduleAutoReconnect()
                 }
                 
@@ -220,9 +208,13 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
                     case "auth_fail":
                         self.pendingPin = nil
                         self.connectionStatus = .authFailed
-                        self.activeRequest = nil
-                        PhoneConnectivity.shared.syncActiveRequest(nil)
                         print("Auth failed.")
+
+                    case "decision_received":
+                        print("Mac bridge received the decision.")
+
+                    case "confirmation_dispatching":
+                        print("Mac bridge is applying the desktop decision.")
                         
                     case "confirmation_request":
                         if let requestData = try? JSONSerialization.data(withJSONObject: json["request"] as Any, options: []),
@@ -365,8 +357,6 @@ class WebSocketManager: NSObject, ObservableObject, URLSessionWebSocketDelegate 
             if self.connectionStatus == .connecting || self.connectionStatus == .connected {
                 self.retryCount += 1
                 self.connectionStatus = .disconnected
-                self.activeRequest = nil
-                PhoneConnectivity.shared.syncActiveRequest(nil)
                 self.scheduleAutoReconnect()
             }
         }

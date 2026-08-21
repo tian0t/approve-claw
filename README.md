@@ -29,7 +29,20 @@
 
 **approve-claw v2.0** is an offline, hardware-accelerated remote permission approval system designed specifically for macOS desktop AI coding agents. 
 
-Powered by **Apple ScreenCaptureKit** and the **Apple Vision OCR Engine (`vision_observer.swift`)**, `approve-claw` dynamically monitors your Mac screen for agent confirmation dialogs, extracts all selectable options and button coordinates in real time, mirrors them 1:1 onto your **iPhone** and **Apple Watch**, and synchronizes your mobile decision back to the Mac to execute via simulated mouse clicks or keystrokes.
+Powered by **macOS Accessibility (AXUIElement)**, **Apple ScreenCaptureKit**, and the **Apple Vision OCR Engine (`vision_observer.swift`)**, `approve-claw` monitors the native Codex/Antigravity desktop UI, mirrors approval requests to your **iPhone** and **Apple Watch**, and sends the decision back to the Mac. The Mac uses a live Accessibility button action first; if the app does not expose the button through Accessibility, it falls back to a Vision-captured screen coordinate click.
+
+### Native Codex execution strategy
+
+The normal Codex path is the native macOS ChatGPT/Codex application UI (`com.openai.chat` / `com.openai.codex`):
+
+1. AXUIElement detects the approval card and maps its live buttons.
+2. The approval request is synchronized to iPhone and Apple Watch.
+3. A tap on `Approve` or `Reject` is sent back to the Mac.
+4. The Mac tries `AXUIElementPerformAction` on the live button.
+5. If AX cannot press the button, Vision OCR reuses the latest frontmost-window coordinates and posts a mouse click.
+6. The mobile devices receive `confirmation_completed` only after the desktop action reports success.
+
+Browser pages are not part of the normal workflow. The browser harness is opt-in and exists only for local OCR testing with `APPROVE_CLAW_ALLOW_BROWSER_CODEX_SIM=1`.
 
 ---
 
@@ -43,8 +56,9 @@ Powered by **Apple ScreenCaptureKit** and the **Apple Vision OCR Engine (`vision
                                           │
                                           ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│  2. Millisecond Screen Capture & Apple Vision OCR                                      │
-│     Scans screen -> Extracts agent type, command, option labels, and pixel coordinates.│
+│  2. Native UI Detection                                                                  │
+│     AXUIElement reads live buttons first; Vision OCR captures the frontmost window      │
+│     and extracts option labels / coordinates when Accessibility cannot expose them.     │
 └─────────────────────────────────────────┬──────────────────────────────────────────────┘
                                           │
                                           ▼
@@ -63,10 +77,9 @@ Powered by **Apple ScreenCaptureKit** and the **Apple Vision OCR Engine (`vision
                                           ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
 │  5. Decision Transmitted Back to Mac for Closed-Loop Execution                         │
-│     (1) NSWorkspace activates target desktop app window to gain system focus.          │
-│     (2) Execution:                                                                     │
-│         - Simulated Mouse: CGEvent clicks exact button coordinates on screen.          │
-│         - Keystroke Injection: Dispatches numeric key / Return into active window.     │
+│     (1) Prefer AXUIElementPerformAction on the live approval button.                   │
+│     (2) Fallback: NSWorkspace focuses the target app and CGEvent clicks Vision coords.│
+│     (3) The result is synchronized only after the desktop action succeeds.             │
 └────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -79,11 +92,13 @@ All supported agents are macOS desktop applications:
 | Desktop App Agent | Screen Recognition Context | Mobile / Watch Option Mapping | Mac Closed-Loop Execution |
 | :--- | :--- | :--- | :--- |
 | **Antigravity IDE** | Implementation plan / execution modals (`Proceed`, `Allow`, `Planning Mode`, `Execute`) | `Proceed & Allow`<br>`Cancel & Deny` | Focuses Antigravity window -> Clicks button coordinates (Enter/Esc fallback) |
-| **OpenAI Codex** | Web & Desktop approval cards (`Approve`, `Reject`, `Ask for approval`) | `Approve`<br>`Reject` | Focuses Codex window -> Clicks `Approve`/`Reject` coordinates |
+| **OpenAI Codex** | Native ChatGPT/Codex desktop approval cards (`Approve`, `Reject`) | `Approve`<br>`Reject` | AXUIElement button press -> Vision coordinate click fallback |
 | **Claude Code** `[WIP]` | Interactive selection menus (`1. Yes, allow once`, `2. Yes, allow...`, `3. No`) | `1. Yes, allow once`<br>`2. Yes, allow for this session`<br>`3. No` | Focuses Claude window -> Clicks option / Injects numeric key + Return |
 
 > [!NOTE]
 > **Primary focus**: OpenAI Codex (ChatGPT desktop app) and Antigravity IDE are the actively developed agents. **Claude Code support is WIP / experimental** and not the current development priority.
+
+> **Codex desktop app only:** the normal workflow targets the native ChatGPT/Codex macOS application UI (`com.openai.chat` / `com.openai.codex`) and uses Vision-captured screen coordinates. Browser pages are not required. The local browser harness is optional and only enabled with `APPROVE_CLAW_ALLOW_BROWSER_CODEX_SIM=1` for OCR testing.
 
 ---
 
@@ -103,6 +118,11 @@ All supported agents are macOS desktop applications:
 - Built with `ScreenCaptureKit` + Apple `Vision` framework (`VNRecognizeTextRequest`).
 - Pure native Swift implementation (`bin/vision_observer`) without third-party OCR dependencies.
 - Hardware-accelerated local scanning with smart cooldown and deduplication.
+
+### Native macOS Accessibility Engine
+- `ax_observer.swift` traverses the frontmost native app's Accessibility tree.
+- Codex uses AX as the primary execution path instead of browser automation.
+- A failed AX press is handed to the Vision bridge automatically.
 
 ### Intelligent GUI Click & Keystroke Dispatcher
 - Window focus management via `NSWorkspace` for instant app switching.
@@ -125,11 +145,12 @@ All supported agents are macOS desktop applications:
 │                                           │ ScreenCaptureKit Frame Stream             │
 │                                           ▼                                           │
 │   ┌───────────────────────────────────────────────────────────────────────────────┐   │
-│   │              vision_observer (Native Swift Binary Engine)                     │   │
+│   │       ax_observer + vision_observer (Native Swift Engines)                    │   │
+│   │  - AXUIElement live-button detection and semantic press (primary)              │   │
 │   │  - VNRecognizeTextRequest (Hardware Accelerated OCR)                          │   │
-│   │  - Strict App Filter: Antigravity / OpenAI Codex / Claude Code                │   │
+│   │  - Strict native-app filter: Antigravity / OpenAI Codex / Claude Code          │   │
 │   │  - 1:1 Dynamic Option & Bounding Box Coordinate Extractor                     │   │
-│   │  - NSWorkspace Window Focusing + CGEvent Mouse Click / Keystroke Dispatcher   │   │
+│   │  - Vision coordinate click fallback + keystroke dispatcher                    │   │
 │   └───────────────────────────────────────┬───────────────────────────────────────┘   │
 │                                           │ stdin / stdout JSON Stream                │
 │                                           ▼                                           │
@@ -163,6 +184,8 @@ approve-claw/
 ├── mac-agent/
 │   ├── src/
 │   │   ├── index.js               # CLI daemon entrypoint & supervisor
+│   │   ├── ax_observer.swift      # Native AX tree observer & semantic button press
+│   │   ├── ax_bridge.js           # AX bridge, completion tracking & Vision fallback
 │   │   ├── vision_observer.swift  # Native Apple Vision OCR & coordinate dispatcher
 │   │   ├── vision_bridge.js       # Bridge linking Swift OCR process to WebSocket
 │   │   ├── websocket.js           # WebSocket server & client session manager
@@ -198,7 +221,7 @@ approve-claw/
 > [!IMPORTANT]
 > **macOS Permissions Setup**:
 > 1. **Screen Recording**: Allow your Terminal / app running `approve-claw` in **System Settings -> Privacy & Security -> Screen Recording**.
-> 2. **Accessibility**: Allow in **System Settings -> Privacy & Security -> Accessibility** to permit `CGEvent` mouse clicks and keystrokes.
+> 2. **Accessibility**: Allow your Terminal / app running `approve-claw` in **System Settings -> Privacy & Security -> Accessibility**. This enables AXUIElement button presses; it also permits the Vision fallback's `CGEvent` mouse click.
 
 ---
 
@@ -209,15 +232,15 @@ approve-claw/
 git clone https://github.com/tian0t/approve-claw.git
 cd approve-claw/mac-agent
 
-# 2. Install dependencies & compile Swift Vision engine
+# 2. Install dependencies
 npm install
-npm run build:vision
 
-# 3. Launch daemon
+# 3. Launch daemon (automatically compiles Vision + Accessibility observers)
 npm start
 ```
 
 When started, the terminal will display the LAN IP address and a 6-digit pairing PIN code.
+Keep this terminal running while using the iPhone or Apple Watch. The Mac and iPhone must be on the same Wi-Fi network.
 
 ---
 
@@ -232,6 +255,27 @@ xcodegen generate
 2. Select your iPhone as the build target and press `Cmd + R` to run.
 3. In the iPhone app, input your Mac's LAN IP address and 6-digit PIN code to complete pairing.
 4. Your paired Apple Watch will automatically sync and be ready to receive live approval requests!
+
+> **Xcode build note:** select the `WatchApprove` scheme and a real iPhone (or the generic iOS device destination) before building. Do not use an iOS Simulator destination for the embedded watch target; Xcode will build the watch companion for watchOS automatically.
+
+### First-run checklist
+
+1. On the Mac, allow **Screen Recording** and **Accessibility** for the terminal app that runs `npm start`.
+2. Start `npm start` and copy the displayed LAN IP and PIN.
+3. Open WatchApprove on the iPhone, enter the IP/PIN, and wait for `Connected`.
+4. Keep WatchApprove open or recently active during personal use; iOS may suspend local WebSocket connections when the app has been backgrounded for a long time.
+5. Trigger a real approval prompt from the supported desktop agent and approve from the iPhone or Watch.
+
+### Verification commands
+
+```bash
+cd mac-agent
+npm run build:native
+npm test
+node test/e2e_realistic_sim.js
+```
+
+The end-to-end simulation verifies native Codex AX priority, Vision fallback routing, duplicate suppression, stale-request handling, and the mobile decision lifecycle.
 
 ---
 

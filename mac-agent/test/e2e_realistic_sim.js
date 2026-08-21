@@ -14,8 +14,9 @@
  *  4. OpenAI Codex         — high-risk git push → Watch rejects → dispatch=true
  *  5. Claude Code          — 3-option tool menu → Watch taps "1" → dispatch=true
  *  6. Semantic dedup       — same dialog rescanned → only one Watch card
- *  7. Stale-prompt guard   — late decision for cleared prompt is ignored
- *  8. Full timeline        — agent fires → user away 800ms → Watch approves → resolved
+ *  7. AX priority          — native Codex AX detection supersedes Vision
+ *  8. Stale-prompt guard   — late decision for cleared prompt is ignored
+ *  9. Full timeline        — agent fires → user away 800ms → Watch approves → resolved
  */
 
 'use strict';
@@ -108,7 +109,7 @@ describe('approve-claw: realistic end-to-end simulation', async () => {
     // Mirrors the Swift isFrontmostApp() logic in JS for verification
     const agentBundleIDs = {
       'Antigravity IDE': ['com.google.antigravity', 'com.google.antigravity-dev'],
-      'OpenAI Codex':    ['com.openai.chat', 'com.openai.codex', 'com.google.Chrome'],
+      'OpenAI Codex':    ['com.openai.chat', 'com.openai.codex'],
       'Claude Code':     ['com.anthropic.claude', 'com.anthropic.claudefordesktop',
                           'com.apple.Terminal', 'com.googlecode.iterm2',
                           'dev.warp.Warp-Stable', 'com.microsoft.VSCode'],
@@ -126,9 +127,11 @@ describe('approve-claw: realistic end-to-end simulation', async () => {
     assert.strictEqual(isFrontmostAllowed('Antigravity IDE', 'com.apple.Safari'), false,
       'Safari must NOT be allowed frontmost for Antigravity IDE');
 
-    // Codex running inside Chrome → allowed
-    assert.strictEqual(isFrontmostAllowed('OpenAI Codex', 'com.google.Chrome'), true,
-      'Chrome IS allowed frontmost for OpenAI Codex');
+    // Normal Codex path is the native desktop app. Browser simulation is opt-in.
+    assert.strictEqual(isFrontmostAllowed('OpenAI Codex', 'com.google.Chrome'), false,
+      'Chrome must NOT be allowed in the normal Codex path');
+    assert.strictEqual(isFrontmostAllowed('OpenAI Codex', 'com.openai.codex'), true,
+      'Native Codex App must be allowed frontmost');
 
     // Claude Code running inside Terminal → allowed
     assert.strictEqual(isFrontmostAllowed('Claude Code', 'com.apple.Terminal'), true,
@@ -288,8 +291,42 @@ describe('approve-claw: realistic end-to-end simulation', async () => {
     console.log('  ✅ Semantic dedup: OCR rescan of same dialog → 0 extra Watch cards');
   });
 
-  // ── 7. Stale-prompt guard ───────────────────────────────────────────────
-  it('7. Stale-prompt guard: late Watch decision for cleared prompt is ignored', () => {
+  // ── 7. AX wins over Vision for the same native Codex card ──────────────
+  it('7. Native Codex: AX detection supersedes Vision detection', () => {
+    const activated = [];
+    const resolved = [];
+    const lifecycle = new RequestLifecycleManager({
+      timeoutMs: 300000,
+      onActivate: (req) => activated.push(req),
+      onResolve: (result) => resolved.push(result),
+    });
+
+    const vision = makeRequest({
+      agent: 'OpenAI Codex',
+      isVisionPrompt: true,
+      command: 'git status',
+      title: 'OpenAI Codex — Approval Required',
+    });
+    const ax = makeRequest({
+      agent: 'OpenAI Codex',
+      isAxPrompt: true,
+      command: 'git status',
+      title: 'OpenAI Codex — Approval Required',
+    });
+
+    lifecycle.enqueue(vision);
+    lifecycle.enqueue(ax);
+
+    assert.strictEqual(activated.length, 2, 'AX should replace the earlier Vision card');
+    assert.strictEqual(resolved[0].request.id, vision.id);
+    assert.strictEqual(resolved[0].reason, 'superseded_by_ax');
+    assert.strictEqual(resolved[0].dispatch, false);
+    assert.strictEqual(lifecycle.getActiveRequest(ax.id).isAxPrompt, true);
+    console.log('  ✅ Native Codex: AX semantic approval takes priority; Vision remains fallback');
+  });
+
+  // ── 8. Stale-prompt guard ───────────────────────────────────────────────
+  it('8. Stale-prompt guard: late Watch decision for cleared prompt is ignored', () => {
     const resolvedLog = [];
     const lifecycle = new RequestLifecycleManager({
       timeoutMs: 300000,
@@ -317,8 +354,8 @@ describe('approve-claw: realistic end-to-end simulation', async () => {
     console.log('  ✅ Stale-prompt guard: late Watch tap safely ignored — no Mac side-effects');
   });
 
-  // ── 8. Full realistic timeline ──────────────────────────────────────────
-  it('8. Full timeline: agent fires → user away ~1s → Watch approve → resolved', async () => {
+  // ── 9. Full realistic timeline ──────────────────────────────────────────
+  it('9. Full timeline: agent fires → user away ~1s → Watch approve → resolved', async () => {
     const port = await freePort();
     const server = new WatchWebSocketServer(port, null, new ConfirmationDetector(), '127.0.0.1');
     server.start();
